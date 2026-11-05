@@ -15,6 +15,7 @@
 
 #include "billiard.h"
 #include "scene.h"
+#include "scene_palette.h"
 #include "pixel_sample.h"
 #include "framebuffer.h"
 #include "explorer.h"
@@ -79,7 +80,7 @@ static unsigned painted_count(const uint32_t *pixels,size_t count,uint64_t *hash
     *hash=UINT64_C(14695981039346656037);
     for(size_t i=0;i<count;i++) {
         uint32_t color=pixels[i];
-        if(color!=0xfffbfaf6u)painted++;
+        if(color!=CHARCOAL_BACKGROUND)painted++;
         *hash^=color;
         *hash*=UINT64_C(1099511628211);
     }
@@ -113,7 +114,7 @@ static void paint(state *s) {
         ANativeWindow_unlockAndPost(s->app->window);return;
     }
     s->window_width=ww;s->window_height=wh;
-    for(size_t i=0;i<(size_t)rw*rh;i++)s->pixels[i]=0xfffbfaf6u;
+    for(size_t i=0;i<(size_t)rw*rh;i++)s->pixels[i]=CHARCOAL_BACKGROUND;
 
     char *operations=NULL;
     size_t bytes=0;

@@ -4,7 +4,7 @@
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
     <application android:allowBackup="false" android:extractNativeLibs="true"
         android:hasCode="false" android:label="Billiard"
-        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        android:theme="@style/Theme.Charcoal.Billiard">
         <activity android:name="android.app.NativeActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="true">

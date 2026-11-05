@@ -20,6 +20,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Checkout fixed shared charcoal roles and resources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: isomorphisms/android-NDK
+          ref: 3e682fb1175beef5625dbd2418730220e49fc9bd
+          path: _charcoal
+          persist-credentials: false
       - name: Checkout exact Rough framebuffer application C
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
