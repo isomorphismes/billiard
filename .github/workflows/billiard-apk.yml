@@ -15,6 +15,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Checkout fixed shared charcoal roles and resources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: isomorphisms/android-NDK
+          ref: 38d6899706d855201239d86e1629e2620c0e8821
+          path: _charcoal
+          persist-credentials: false
       - name: Checkout pinned rough framebuffer source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -115,6 +122,8 @@ jobs:
           cert=$(awk -F '\t' '$1=="org.isomorphisms.billiard" && $2=="test" {print $3}' _aici_test_signing/android-signing/identities.tsv)
           [[ "$cert" =~ ^[0-9a-f]{64}$ ]] || { echo "Missing registered test certificate" >&2; exit 1; }
           echo "ANDROID_EXPECTED_CERT_SHA256=$cert" >> "$GITHUB_ENV"
+      - name: Stage shared launch resources with the existing fullscreen policy
+        run: cp -R _charcoal/native/presentation/res/. android/res/
       - name: Produce paired test-only APKs from the ICK native libraries
         shell: bash
         env:
@@ -129,6 +138,7 @@ jobs:
           ANDROID_KEY_ALIAS: wegert-debug
           ANDROID_STORE_PASSWORD: wegert-debug
           ANDROID_KEY_PASSWORD: wegert-debug
+          ANDROID_RES_DIR: ${{ github.workspace }}/android/res
           ANDROID_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -Eeuo pipefail

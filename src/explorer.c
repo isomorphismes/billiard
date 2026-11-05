@@ -1,4 +1,5 @@
 #include "explorer.h"
+#include "scene_palette.h"
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
@@ -149,7 +150,9 @@ static void label(FILE *output, double x, double y, double scale, double alpha, 
         {2,6,10,18,31,2,2},{31,16,16,30,1,1,30},{14,16,16,30,17,17,14},{31,1,2,4,8,8,8},
         {14,17,17,14,17,17,14},{14,17,17,15,1,1,14}
     };
-    fprintf(output,"P 48 68 80\nA %.3f\nW %.3f\nD 0 0\n",alpha,0.9*scale);
+    fprintf(output,"P %u %u %u\nA %.3f\nW %.3f\nD 0 0\n",
+        BILLIARD_RGB(BILLIARD_LABEL(alpha),48,68,80),
+        BILLIARD_ALPHA(1.0,alpha),0.9*scale);
     for (; *text; ++text, x += 6*scale) {
         unsigned char character = (unsigned char)*text;
         if (character >= 'a' && character <= 'z') character -= 'a'-'A';
@@ -227,7 +230,7 @@ static int unfolded_scene(FILE *output, unsigned width, unsigned height, const b
             size_t target = model->surface.seam[copy][side].target_copy;
             size_t pair = (copy < target ? copy : target)*model->polygon.count+side;
             unsigned color = (unsigned)(pair%6);
-            fprintf(output,"P %u %u %u\nA .18\nW .8\nD 0 0\n",palette[color][0],palette[color][1],palette[color][2]);
+            fprintf(output,"P %u %u %u\nA %.3f\nW .8\nD 0 0\n",palette[color][0],palette[color][1],palette[color][2],BILLIARD_ALPHA(.65,.18));
             billiard_numeric_point first = project(identity,&layout,polygon[event][side]);
             billiard_numeric_point second = project(identity,&layout,polygon[event][(side+1)%model->polygon.count]);
             line(output,first,second);
@@ -238,7 +241,8 @@ static int unfolded_scene(FILE *output, unsigned width, unsigned height, const b
     billiard_numeric_point first = numeric(model->event[0].developed_start), last = numeric(model->event[count-1].developed_end);
     first = billiard_affine_point(model->deformed.matrix,first); last = billiard_affine_point(model->deformed.matrix,last);
     first = project(identity,&layout,first); last = project(identity,&layout,last);
-    fprintf(output,"P 30 112 170\nA .34\nW 1.1\nD 1 6\n"); line(output,first,last);
+    fprintf(output,"P %u %u %u\nA .34\nW 1.1\nD 1 6\n",
+        BILLIARD_RGB(BILLIARD_TRAJECTORY,30,112,170)); line(output,first,last);
     char caption[64]; snprintf(caption,sizeof caption,"UNFOLD %zu EVENTS / PAIRED SIDES",count);
     label(output,18,height*0.535,0.85,0.60,caption);
     return 0;
@@ -265,7 +269,8 @@ int billiard_explorer_scene(FILE *output, unsigned width, unsigned height, const
     layout->origin_x = width*0.5-(left+right)*0.5*scale;
     layout->origin_y = (upper+lower)*0.5+(bottom+top)*0.5*scale;
     billiard_affine_matrix matrix = model->deformed.matrix;
-    fprintf(output,"P 52 68 78\nA .8\nW 1.3\nD 0 0\n");
+    fprintf(output,"P %u %u %u\nA .8\nW 1.3\nD 0 0\n",
+        BILLIARD_RGB(CHARCOAL_SECONDARY,52,68,78));
     for (size_t side = 0; side < model->polygon.count; ++side) {
         billiard_numeric_point first = project(matrix,layout,numeric(model->polygon.vertex[side]));
         billiard_numeric_point second = project(matrix,layout,numeric(model->polygon.vertex[(side+1)%model->polygon.count]));
@@ -279,7 +284,8 @@ int billiard_explorer_scene(FILE *output, unsigned width, unsigned height, const
     /* Keep a faint continuous record underneath the dotted trajectory. It is
      * redrawn from geometry, so clearing the framebuffer does not erase it. */
     for (unsigned pass = 0; pass < 2; ++pass) {
-      fprintf(output,"P 28 107 171\nA %s\nW 1.15\nD %s\nM %.5f %.5f\n",
+      fprintf(output,"P %u %u %u\nA %s\nW 1.15\nD %s\nM %.5f %.5f\n",
+          BILLIARD_RGB(BILLIARD_TRAJECTORY,28,107,171),
           pass ? ".32" : ".16",pass ? "1.05 6.0" : "0 0",start.x,start.y);
       for (size_t event = 0; event < model->event_count; ++event) {
         if (visible <= model->distance_start[event]) break;
@@ -301,14 +307,18 @@ int billiard_explorer_scene(FILE *output, unsigned width, unsigned height, const
     exact_point direction; if (billiard_polygon_direction(model->config.heading,&direction)) return -1;
     billiard_numeric_point arrow = billiard_affine_point(matrix,numeric(direction)); double arrow_norm = hypot(arrow.x,arrow.y);
     layout->handle_x = start.x+29*arrow.x/arrow_norm; layout->handle_y = start.y-29*arrow.y/arrow_norm;
-    fprintf(output,"P 80 110 130\nA .75\nW 1\nD 0 0\n"); line(output,start,(billiard_numeric_point){layout->handle_x,layout->handle_y});
-    fprintf(output,"P 220 120 40\nA .95\nW 4\n"); line(output,tip,tip);
-    fprintf(output,"P 35 120 145\nA .9\nW 3.5\n"); line(output,start,start);
+    fprintf(output,"P %u %u %u\nA .75\nW 1\nD 0 0\n",
+        BILLIARD_RGB(CHARCOAL_FOCUS,80,110,130)); line(output,start,(billiard_numeric_point){layout->handle_x,layout->handle_y});
+    fprintf(output,"P %u %u %u\nA .95\nW 4\n",
+        BILLIARD_RGB(CHARCOAL_WARNING,220,120,40)); line(output,tip,tip);
+    fprintf(output,"P %u %u %u\nA .9\nW 3.5\n",
+        BILLIARD_RGB(CHARCOAL_SUCCESS,35,120,145)); line(output,start,start);
     layout->wall_x = layout->wall_y = -1000;
     if (model->config.fixture == BILLIARD_RECTANGLE) {
         billiard_numeric_point wall = project(matrix,layout,(billiard_numeric_point){billiard_exact_display(model->source_width),1.5});
         layout->wall_x = wall.x; layout->wall_y = wall.y;
-        fprintf(output,"P 65 90 120\nW 5\n"); line(output,wall,wall);
+        fprintf(output,"P %u %u %u\nW 5\n",
+            BILLIARD_RGB(CHARCOAL_FOCUS,65,90,120)); line(output,wall,wall);
     }
     const char *status = model->polygon_vertex_stop ? "VERTEX STOP" : (model->periodic ? "PERIODIC" :
         (model->flow_status == BILLIARD_FLOW_SINGULAR ? "CONE STOP" : (model->flow_status == BILLIARD_FLOW_INVALID ? "START OUTSIDE" : "UNKNOWN LIMIT")));
@@ -333,7 +343,8 @@ int billiard_explorer_chrome(FILE *output, unsigned width, unsigned height, cons
     const billiard_explorer_model *model, int playing, double speed) {
     if (!output || !config || width < 160 || height < 320 || config->fixture < 0 || config->fixture >= BILLIARD_FIXTURE_COUNT ||
         config->view < BILLIARD_EXPLORER_LEGACY || config->view > BILLIARD_EXPLORER_COVER) return -1;
-    fprintf(output,"P 55 85 100\nA .8\nW 2\nD 0 0\n");
+    fprintf(output,"P %u %u %u\nA .8\nW 2\nD 0 0\n",
+        BILLIARD_RGB(CHARCOAL_TEXT,55,85,100));
     if (playing) { line(output,(billiard_numeric_point){16,16},(billiard_numeric_point){16,30}); line(output,(billiard_numeric_point){23,16},(billiard_numeric_point){23,30}); }
     else { line(output,(billiard_numeric_point){16,16},(billiard_numeric_point){28,23}); line(output,(billiard_numeric_point){28,23},(billiard_numeric_point){16,30}); }
     label(output,35,20,0.9,0.8,playing ? "PAUSE" : "PLAY");
@@ -346,7 +357,8 @@ int billiard_explorer_chrome(FILE *output, unsigned width, unsigned height, cons
     for (unsigned tab = 0; tab < BILLIARD_FIXTURE_COUNT; ++tab) {
         label(output,(double)width*tab/BILLIARD_FIXTURE_COUNT+5,46,0.9,tab == (unsigned)config->fixture ? 0.95 : 0.48,tabs[tab]);
         if (tab == (unsigned)config->fixture) {
-            fprintf(output,"P 40 110 145\nA .8\nW 1.5\nD 0 0\n");
+            fprintf(output,"P %u %u %u\nA .8\nW 1.5\nD 0 0\n",
+                BILLIARD_RGB(CHARCOAL_FOCUS,40,110,145));
             line(output,(billiard_numeric_point){(double)width*tab/BILLIARD_FIXTURE_COUNT+4,60},
                 (billiard_numeric_point){(double)width*(tab+1)/BILLIARD_FIXTURE_COUNT-4,60});
         }

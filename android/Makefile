@@ -69,7 +69,7 @@ $(OUTDIR)/billiard.o: ../src/billiard.c ../src/billiard.h check-ick
 	@mkdir -p "$(OUTDIR)"
 	"$(ICK_CC)" $(CFLAGS_ICK) -c "$<" -o "$@"
 
-$(OUTDIR)/scene.o: ../src/scene.c ../src/scene.h ../src/billiard.h check-ick
+$(OUTDIR)/scene.o: ../src/scene.c ../src/scene.h ../src/scene_palette.h ../_charcoal/native/presentation/charcoal.h ../src/billiard.h check-ick
 	@mkdir -p "$(OUTDIR)"
 	"$(ICK_CC)" $(CFLAGS_ICK) -c "$<" -o "$@"
 

@@ -66,6 +66,14 @@ build/test_explorer: $(EXPLORER_SOURCES) $(EXPERIMENT_HEADERS) src/scene.c tests
 	@mkdir -p build
 	"$(ICK_CC)" $(ICK_LINK_FLAGS) $(ICK_CFLAGS) -Isrc $(EXPLORER_SOURCES) src/scene.c tests/test_explorer.c -o $@ $(LDLIBS)
 
+build/test_charcoal: $(EXPLORER_SOURCES) $(EXPERIMENT_HEADERS) src/scene.c tests/test_charcoal.c check-ick
+	@mkdir -p build
+	"$(ICK_CC)" $(ICK_LINK_FLAGS) $(ICK_CFLAGS) -DBILLIARD_CHARCOAL -Isrc -I_rough_framebuffer/src $(EXPLORER_SOURCES) src/scene.c _rough_framebuffer/src/framebuffer.c tests/test_charcoal.c -o $@ $(LDLIBS)
+
+.PHONY: charcoal-pixels
+charcoal-pixels: build/test_charcoal
+	./build/test_charcoal
+
 build/explorer-scene: $(EXPLORER_SOURCES) $(EXPERIMENT_HEADERS) src/explorer_scene_ops.c check-ick
 	@mkdir -p build
 	"$(ICK_CC)" $(ICK_LINK_FLAGS) $(ICK_CFLAGS) -Isrc $(EXPLORER_SOURCES) src/explorer_scene_ops.c -o $@ $(LDLIBS)
