@@ -30,6 +30,10 @@ retain their Q(√3) contract. Unfolding an eighth-angle polygon returns
 The π/8 regression triangle has vertices (0,0), (1,0), (1,√2−1).
 Vertical incidence at x hits the diagonal at y=(√2−1)x and leaves in
 direction (√2/2, −√2/2). Eight starting positions check this closed form.
+During `make test`, the independent half-plane oracle also compares 3,360
+rays against the ICK test executable. It uses rational lower and upper
+bounds for √2 to order exits and checks every exact parameter, endpoint,
+reflection and vertex stop.
 
 Geometry is counterclockwise in its coordinate plane. Validation rejects
 zero edges, backtracking, nonadjacent crossings or touching, nonpositive

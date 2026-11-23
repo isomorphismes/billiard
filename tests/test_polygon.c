@@ -1,8 +1,10 @@
 #include "polygon.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static billiard_exact number(int32_t rational, int32_t radical, int32_t denominator) {
     billiard_exact result;
@@ -162,10 +164,7 @@ static void equilateral(void) {
     puts("equilateral exact sqrt(3) edge/vertex controls: PASS");
 }
 
-/* The diagonal is y=(sqrt(2)-1)x. For vertical incidence, its double
- * angle is pi/4, so the reflected vector is (sqrt(2)/2,-sqrt(2)/2).
- * This oracle uses closed-form coordinates independently of the kernel. */
-static void eighth_angle_triangle(void) {
+static billiard_polygon eighth_triangle_fixture(void) {
     billiard_polygon triangle = {0};
     triangle.field = BILLIARD_SQRT2_EIGHTHS;
     triangle.count = 3;
@@ -175,6 +174,14 @@ static void eighth_angle_triangle(void) {
     triangle.angle[0] = (billiard_angle){1,8};
     triangle.angle[1] = (billiard_angle){1,2};
     triangle.angle[2] = (billiard_angle){3,8};
+    return triangle;
+}
+
+/* The diagonal is y=(sqrt(2)-1)x. For vertical incidence, its double
+ * angle is pi/4, so the reflected vector is (sqrt(2)/2,-sqrt(2)/2).
+ * This oracle uses closed-form coordinates independently of the kernel. */
+static void eighth_angle_triangle(void) {
+    billiard_polygon triangle = eighth_triangle_fixture();
     assert(billiard_polygon_validate(&triangle) == BILLIARD_POLYGON_OK);
 
     billiard_polygon_ray ray;
@@ -316,7 +323,37 @@ static void replay_and_adapter(void) {
     puts("rectangle adapter, 80-event replay and independent mirror folding: PASS");
 }
 
-int main(void) {
+static void write_coefficients(billiard_exact value) {
+    printf(" %" PRId32 " %" PRId32 " %" PRId32, value.rational,value.radical,value.denominator);
+}
+
+/* Emit exact results for the independently generated grid of interior rays.
+ * Input consists of x*16, y*16 and the two integer direction components. */
+static int trace_eighth_triangle(void) {
+    billiard_polygon polygon = eighth_triangle_fixture();
+    int x, y, dx, dy, count;
+    while ((count = scanf("%d %d %d %d", &x,&y,&dx,&dy)) == 4) {
+        billiard_polygon_ray ray;
+        billiard_polygon_event hit;
+        billiard_exact_point start = {number(x,0,16),number(y,0,16)};
+        if (billiard_polygon_begin(&polygon,start,integral(dx,dy),1,&ray) != BILLIARD_POLYGON_OK)
+            return 1;
+        enum billiard_polygon_status status = billiard_polygon_next(&polygon,&ray,&hit);
+        if (status != BILLIARD_POLYGON_EDGE && status != BILLIARD_POLYGON_VERTEX_STOP) return 1;
+        printf("%u %zu", (unsigned)status, status == BILLIARD_POLYGON_EDGE ? hit.side : hit.vertex);
+        write_coefficients(hit.parameter);
+        write_coefficients(hit.end.x);
+        write_coefficients(hit.end.y);
+        write_coefficients(hit.outgoing.x);
+        write_coefficients(hit.outgoing.y);
+        putchar('\n');
+    }
+    return count == EOF && !ferror(stdin) && !ferror(stdout) ? 0 : 1;
+}
+
+int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1],"--trace-eighths")) return trace_eighth_triangle();
+    if (argc != 1) return 1;
     compare_grid();
     equilateral();
     eighth_angle_triangle();

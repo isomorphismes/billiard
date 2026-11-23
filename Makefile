@@ -94,6 +94,7 @@ explorer-pixels: explorer-scenes build/test_explorer
 test: build/test_billiard build/test_polygon build/test_surface build/test_flow build/test_cylinders build/test_periods build/test_experiments build/test_explorer
 	./build/test_billiard
 	./build/test_polygon
+	python3 tests/check_eighth_triangle.py build/test_polygon
 	./build/test_surface
 	./build/test_flow
 	./build/test_cylinders
