@@ -94,6 +94,9 @@ int main(void) {
     billiard_polygon polygon;
     billiard_surface surface;
     assert(billiard_polygon_fixture(BILLIARD_L_POLYGON,&polygon) == BILLIARD_POLYGON_OK);
+    polygon.field = BILLIARD_SQRT2_EIGHTHS;
+    assert(billiard_surface_unfold(&polygon,&surface) == BILLIARD_SURFACE_UNSUPPORTED_FIELD);
+    polygon.field = BILLIARD_SQRT3_TWELFTHS;
     polygon.angle[3] = (billiard_angle){0,0};
     assert(billiard_surface_unfold(&polygon,&surface) == BILLIARD_SURFACE_INVALID);
     puts("BIL-UNFOLD-02 exact covers, topology and malformed-gluing controls: PASS");

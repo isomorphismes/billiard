@@ -23,7 +23,8 @@ static int same_ray(billiard_polygon_ray first, billiard_polygon_ray second) {
            same_number(first.direction.y, second.direction.y) &&
            first.previous_side == second.previous_side &&
            first.steps_remaining == second.steps_remaining &&
-           first.distance == second.distance && first.stopped == second.stopped;
+           first.distance == second.distance && first.stopped == second.stopped &&
+           first.field == second.field && first.launch_vertex == second.launch_vertex;
 }
 static void rational_equal(billiard_exact value, int64_t numerator, int64_t denominator) {
     assert(!value.radical);
@@ -161,6 +162,73 @@ static void equilateral(void) {
     puts("equilateral exact sqrt(3) edge/vertex controls: PASS");
 }
 
+/* The diagonal is y=(sqrt(2)-1)x. For vertical incidence, its double
+ * angle is pi/4, so the reflected vector is (sqrt(2)/2,-sqrt(2)/2).
+ * This oracle uses closed-form coordinates independently of the kernel. */
+static void eighth_angle_triangle(void) {
+    billiard_polygon triangle = {0};
+    triangle.field = BILLIARD_SQRT2_EIGHTHS;
+    triangle.count = 3;
+    triangle.vertex[0] = integral(0,0);
+    triangle.vertex[1] = integral(1,0);
+    triangle.vertex[2] = (billiard_exact_point){number(1,0,1),number(-1,1,1)};
+    triangle.angle[0] = (billiard_angle){1,8};
+    triangle.angle[1] = (billiard_angle){1,2};
+    triangle.angle[2] = (billiard_angle){3,8};
+    assert(billiard_polygon_validate(&triangle) == BILLIARD_POLYGON_OK);
+
+    billiard_polygon_ray ray;
+    billiard_polygon_event hit;
+    for (int x = 8; x < 16; ++x) {
+        billiard_exact_point start = {number(x,0,16),number(1,0,8)};
+        assert(billiard_polygon_begin(&triangle,start,integral(0,1),2,&ray) == BILLIARD_POLYGON_OK);
+        assert(billiard_polygon_next(&triangle,&ray,&hit) == BILLIARD_POLYGON_EDGE);
+        assert(hit.side == 2 && hit.vertex == SIZE_MAX);
+        assert(same_number(hit.parameter,number(-x-2,x,16)));
+        assert(same_number(hit.end.x,start.x));
+        assert(same_number(hit.end.y,number(-x,x,16)));
+        assert(same_number(hit.outgoing.x,number(0,1,2)));
+        assert(same_number(hit.outgoing.y,number(0,-1,2)));
+        assert(fabs(hit.length-((sqrt(2.0)-1.0)*x/16.0-0.125)) < 1e-12);
+        if (x == 8) {
+            assert(billiard_polygon_next(&triangle,&ray,&hit) == BILLIARD_POLYGON_EDGE);
+            assert(hit.side == 0 && same_number(hit.end.x,number(0,1,2)));
+            assert(same_number(hit.parameter,number(2,-1,2)));
+        }
+    }
+    billiard_exact_point start = {number(1,0,2),number(1,0,8)};
+    assert(billiard_polygon_begin(&triangle,start,integral(-4,-1),2,&ray) == BILLIARD_POLYGON_OK);
+    assert(billiard_polygon_next(&triangle,&ray,&hit) == BILLIARD_POLYGON_VERTEX_STOP);
+    assert(hit.vertex == 0 && same_number(hit.parameter,number(1,0,8)));
+    assert(billiard_polygon_next(&triangle,&ray,&hit) == BILLIARD_POLYGON_STOPPED);
+    /* 3-2*sqrt(2) is positive and below (sqrt(2)-1)/2. Using a sqrt(3)
+     * sign predicate would place this point below the horizontal edge. */
+    int location;
+    billiard_exact_point near_edge = {number(1,0,2),number(3,-2,1)};
+    assert(billiard_polygon_locate(&triangle,near_edge,&location) == BILLIARD_POLYGON_OK);
+    assert(location == 1);
+
+    /* Apply the similarity z -> (2+i)z. The first side is no longer on a
+     * certified absolute heading; the relative angles are unchanged. */
+    billiard_polygon rotated = triangle;
+    rotated.vertex[1] = integral(2,1);
+    rotated.vertex[2] = (billiard_exact_point){number(3,-1,1),number(-1,2,1)};
+    assert(billiard_polygon_validate(&rotated) == BILLIARD_POLYGON_OK);
+    billiard_polygon wrong = triangle;
+    wrong.field = BILLIARD_SQRT3_TWELFTHS;
+    assert(billiard_polygon_validate(&wrong) == BILLIARD_POLYGON_UNSUPPORTED_ANGLE);
+    wrong = triangle;
+    wrong.angle[0] = (billiard_angle){1,7};
+    assert(billiard_polygon_validate(&wrong) == BILLIARD_POLYGON_UNSUPPORTED_ANGLE);
+    wrong.field = (enum billiard_polygon_field)17;
+    assert(billiard_polygon_validate(&wrong) == BILLIARD_POLYGON_INVALID);
+    billiard_polygon square = fixture(0);
+    assert(billiard_polygon_begin(&square,start,integral(0,1),2,&ray) == BILLIARD_POLYGON_OK);
+    square.field = BILLIARD_SQRT2_EIGHTHS;
+    assert(billiard_polygon_next(&square,&ray,&hit) == BILLIARD_POLYGON_INVALID);
+    puts("exact pi/8 triangle intersections, reflections and vertex stop: PASS");
+}
+
 static void adverse(void) {
     billiard_polygon square = fixture(0), changed = square;
     billiard_exact_point normal;
@@ -251,6 +319,7 @@ static void replay_and_adapter(void) {
 int main(void) {
     compare_grid();
     equilateral();
+    eighth_angle_triangle();
     adverse();
     replay_and_adapter();
     puts("BIL-POLY-01 bounded certified kernel: PASS");

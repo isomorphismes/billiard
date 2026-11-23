@@ -5,7 +5,19 @@
 
 typedef billiard_exact exact;
 typedef billiard_exact_point point;
-typedef struct { int failed; } calculation;
+typedef struct { int failed; unsigned radicand; } calculation;
+
+static unsigned field_radicand(enum billiard_polygon_field field) {
+    switch (field) {
+        case BILLIARD_SQRT3_TWELFTHS: return 3;
+        case BILLIARD_SQRT2_EIGHTHS: return 2;
+    }
+    return 0;
+}
+
+static int is_zero(exact value) { return !value.rational && !value.radical; }
+static int zero_vector(point value) { return is_zero(value.x) && is_zero(value.y); }
+static unsigned quarter_turn(unsigned radicand) { return radicand == 2 ? 4u : 6u; }
 
 static uint32_t magnitude(int32_t value) {
     return value < 0 ? (uint32_t)(-value) : (uint32_t)value;
@@ -101,7 +113,7 @@ static exact multiply(calculation *work, exact first, exact second) {
     first.denominator /= right_cancel;
     int32_t rational_product = multiply_integer(work, first.rational, second.rational);
     int32_t radical_product = multiply_integer(work, first.radical, second.radical);
-    radical_product = multiply_integer(work, 3, radical_product);
+    radical_product = multiply_integer(work, (int32_t)work->radicand, radical_product);
     int32_t mixed_left = multiply_integer(work, first.rational, second.radical);
     int32_t mixed_right = multiply_integer(work, first.radical, second.rational);
     int32_t rational = add_integer(work, rational_product, radical_product);
@@ -122,7 +134,7 @@ static exact divide(calculation *work, exact first, exact second) {
     }
     int32_t rational_square = multiply_integer(work, second.rational, second.rational);
     int32_t radical_square = multiply_integer(work, second.radical, second.radical);
-    radical_square = multiply_integer(work, 3, radical_square);
+    radical_square = multiply_integer(work, (int32_t)work->radicand, radical_square);
     int32_t norm = add_integer(work, rational_square, -radical_square);
     if (work->failed || !norm) { work->failed = 1; return integer(0); }
     exact conjugate = {second.rational, -second.radical, 1};
@@ -131,7 +143,7 @@ static exact divide(calculation *work, exact first, exact second) {
     return multiply(work, first, reciprocal);
 }
 
-static int sign(exact number) {
+static int sign(const calculation *work, exact number) {
     int32_t rational = number.rational, radical = number.radical;
     if (!radical) return (rational > 0) - (rational < 0);
     if (!rational) return radical > 0 ? 1 : -1;
@@ -139,7 +151,7 @@ static int sign(exact number) {
     /* Each coefficient has magnitude <= INT32_MAX. Even 3*b*b fits uint64_t.
      * Squaring here is exact and needs no wide integer division. */
     uint64_t rational_square = (uint64_t)magnitude(rational) * magnitude(rational);
-    uint64_t radical_square = UINT64_C(3) * magnitude(radical) * magnitude(radical);
+    uint64_t radical_square = (uint64_t)work->radicand * magnitude(radical) * magnitude(radical);
     int comparison = rational_square > radical_square ? 1 : -1;
     return rational > 0 ? comparison : -comparison;
 }
@@ -170,10 +182,15 @@ static exact dot(calculation *work, point first, point second) {
     return add(work, left, right);
 }
 
-double billiard_exact_display(exact number) {
-    if (!canonical(number)) return NAN;
-    return ((double)number.rational + (double)number.radical * sqrt(3.0)) /
+double billiard_polygon_display(enum billiard_polygon_field field, exact number) {
+    unsigned radicand = field_radicand(field);
+    if (!radicand || !canonical(number)) return NAN;
+    return ((double)number.rational + (double)number.radical * sqrt((double)radicand)) /
            number.denominator;
+}
+
+double billiard_exact_display(exact number) {
+    return billiard_polygon_display(BILLIARD_SQRT3_TWELFTHS, number);
 }
 
 int billiard_exact_valid(exact number) { return canonical(number); }
@@ -186,7 +203,7 @@ int billiard_exact_equal(exact first, exact second) {
 #define FIELD_OPERATION(name, operation) \
 int name(exact first, exact second, exact *result) { \
     if (!result || !canonical(first) || !canonical(second)) return -1; \
-    calculation work = {0}; \
+    calculation work = {0, 3}; \
     exact proposed = operation(&work, first, second); \
     if (work.failed) return -1; \
     *result = proposed; \
@@ -200,10 +217,10 @@ FIELD_OPERATION(billiard_exact_divide, divide)
 
 int billiard_exact_compare(exact first, exact second, int *ordering) {
     if (!ordering || !canonical(first) || !canonical(second)) return -1;
-    calculation work = {0};
+    calculation work = {0, 3};
     exact delta = subtract(&work, first, second);
     if (work.failed) return -1;
-    *ordering = sign(delta);
+    *ordering = sign(&work, delta);
     return 0;
 }
 
@@ -237,15 +254,15 @@ enum billiard_polygon_status billiard_polygon_fixture(enum billiard_fixture kind
 static int on_segment(calculation *work, point candidate, point start, point end) {
     point before = difference(work, candidate, start);
     point after = difference(work, candidate, end);
-    return sign(cross(work, before, after)) == 0 && sign(dot(work, before, after)) <= 0;
+    return sign(work, cross(work, before, after)) == 0 && sign(work, dot(work, before, after)) <= 0;
 }
 
 static int intersect(calculation *work, point a, point b, point c, point d) {
     point first = difference(work, b, a), second = difference(work, d, c);
     point ca = difference(work, c, a), da = difference(work, d, a);
     point ac = difference(work, a, c), bc = difference(work, b, c);
-    int side_c = sign(cross(work, first, ca)), side_d = sign(cross(work, first, da));
-    int side_a = sign(cross(work, second, ac)), side_b = sign(cross(work, second, bc));
+    int side_c = sign(work, cross(work, first, ca)), side_d = sign(work, cross(work, first, da));
+    int side_a = sign(work, cross(work, second, ac)), side_b = sign(work, cross(work, second, bc));
     if (side_c * side_d < 0 && side_a * side_b < 0) return 1;
     return (!side_c && on_segment(work, c, a, b)) ||
            (!side_d && on_segment(work, d, a, b)) ||
@@ -253,13 +270,20 @@ static int intersect(calculation *work, point a, point b, point c, point d) {
            (!side_b && on_segment(work, b, c, d));
 }
 
-static point direction_for(unsigned heading) {
-    const point first_quadrant[6] = {
+static point direction_for(unsigned radicand, unsigned heading) {
+    const point twelfths[6] = {
         {{1,0,1},{0,0,1}}, {{2,1,1},{1,0,1}}, {{0,1,1},{1,0,1}},
         {{1,0,1},{1,0,1}}, {{1,0,1},{0,1,1}}, {{1,0,1},{2,1,1}}
     };
-    point direction = first_quadrant[heading % 6];
-    for (unsigned turn = 0; turn < heading / 6; ++turn)
+    /* tan(pi/8) = sqrt(2) - 1; obtain 3*pi/8 by swapping components. */
+    const point eighths[4] = {
+        {{1,0,1},{0,0,1}}, {{1,0,1},{-1,1,1}},
+        {{1,0,1},{1,0,1}}, {{-1,1,1},{1,0,1}}
+    };
+    unsigned quadrant = quarter_turn(radicand);
+    const point *references = radicand == 2 ? eighths : twelfths;
+    point direction = references[heading % quadrant];
+    for (unsigned turn = 0; turn < heading / quadrant; ++turn)
         direction = (point){negative(direction.y), direction.x};
     return direction;
 }
@@ -270,9 +294,9 @@ static int heading_for(calculation *work, point edge, point first_edge) {
     exact along = dot(work, edge, first_edge);
     exact across = cross(work, first_edge, edge);
     point relative = {along, across};
-    for (unsigned heading = 0; heading < 24; ++heading) {
-        point reference = direction_for(heading);
-        if (!sign(cross(work, relative, reference)) && sign(dot(work, relative, reference)) > 0)
+    for (unsigned heading = 0; heading < 4u*quarter_turn(work->radicand); ++heading) {
+        point reference = direction_for(work->radicand, heading);
+        if (!sign(work, cross(work, relative, reference)) && sign(work, dot(work, relative, reference)) > 0)
             return (int)heading;
         if (work->failed) return -1;
     }
@@ -281,14 +305,16 @@ static int heading_for(calculation *work, point edge, point first_edge) {
 
 int billiard_polygon_direction(unsigned heading, point *direction) {
     if (!direction || heading >= 24) return -1;
-    *direction = direction_for(heading);
+    *direction = direction_for(3, heading);
     return 0;
 }
 
 enum billiard_polygon_status billiard_polygon_validate(const billiard_polygon *polygon) {
     if (!polygon || polygon->count < 3 || polygon->count > BILLIARD_POLYGON_MAX_VERTICES)
         return BILLIARD_POLYGON_INVALID;
-    calculation work = {0};
+    calculation work = {0, field_radicand(polygon->field)};
+    if (!work.radicand) return BILLIARD_POLYGON_INVALID;
+    const int half_turn = 2*(int)quarter_turn(work.radicand);
     point edges[BILLIARD_POLYGON_MAX_VERTICES];
     int headings[BILLIARD_POLYGON_MAX_VERTICES];
     exact twice_area = integer(0);
@@ -300,9 +326,9 @@ enum billiard_polygon_status billiard_polygon_validate(const billiard_polygon *p
         exact area_piece = cross(&work, start, end);
         twice_area = add(&work, twice_area, area_piece);
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-        if (!sign(edges[side].x) && !sign(edges[side].y)) return BILLIARD_POLYGON_INVALID;
+        if (zero_vector(edges[side])) return BILLIARD_POLYGON_INVALID;
     }
-    if (sign(twice_area) <= 0) return BILLIARD_POLYGON_INVALID;
+    if (sign(&work, twice_area) <= 0) return BILLIARD_POLYGON_INVALID;
     for (size_t first = 0; first < polygon->count; ++first)
         for (size_t second = first+1; second < polygon->count; ++second) {
             if (second == first+1 || (first == 0 && second+1 == polygon->count)) continue;
@@ -320,17 +346,17 @@ enum billiard_polygon_status billiard_polygon_validate(const billiard_polygon *p
     unsigned sum = 0;
     for (size_t vertex = 0; vertex < polygon->count; ++vertex) {
         int turn = headings[vertex] - headings[(vertex+polygon->count-1)%polygon->count];
-        if (turn > 12) turn -= 24;
-        if (turn < -12) turn += 24;
-        if (turn == 12 || turn == -12) return BILLIARD_POLYGON_INVALID;
-        unsigned interior = (unsigned)(12-turn);
+        if (turn > half_turn) turn -= 2*half_turn;
+        if (turn < -half_turn) turn += 2*half_turn;
+        if (turn == half_turn || turn == -half_turn) return BILLIARD_POLYGON_INVALID;
+        unsigned interior = (unsigned)(half_turn-turn);
         billiard_angle claim = polygon->angle[vertex];
         if (!claim.numerator || !claim.denominator ||
-            12u*claim.numerator != interior*claim.denominator)
+            (unsigned)half_turn*claim.numerator != interior*claim.denominator)
             return BILLIARD_POLYGON_UNSUPPORTED_ANGLE;
         sum += interior;
     }
-    return sum == 12u*(polygon->count-2) ? BILLIARD_POLYGON_OK : BILLIARD_POLYGON_INVALID;
+    return sum == (unsigned)half_turn*(polygon->count-2) ? BILLIARD_POLYGON_OK : BILLIARD_POLYGON_INVALID;
 }
 
 enum billiard_polygon_status billiard_polygon_side_normal(const billiard_polygon *polygon,
@@ -339,7 +365,7 @@ enum billiard_polygon_status billiard_polygon_side_normal(const billiard_polygon
     enum billiard_polygon_status status = billiard_polygon_validate(polygon);
     if (status != BILLIARD_POLYGON_OK) return status;
     if (side >= polygon->count) return BILLIARD_POLYGON_INVALID;
-    calculation work = {0};
+    calculation work = {0, field_radicand(polygon->field)};
     point edge = difference(&work, polygon->vertex[(side+1)%polygon->count], polygon->vertex[side]);
     if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
     *outward_normal = (point){edge.y,negative(edge.x)};
@@ -351,7 +377,8 @@ enum billiard_polygon_status billiard_polygon_locate(const billiard_polygon *pol
     if (!polygon || !location || polygon->count < 3 ||
         polygon->count > BILLIARD_POLYGON_MAX_VERTICES || !valid_point(position))
         return BILLIARD_POLYGON_INVALID;
-    calculation work = {0};
+    calculation work = {0, field_radicand(polygon->field)};
+    if (!work.radicand) return BILLIARD_POLYGON_INVALID;
     int winding = 0;
     for (size_t side = 0; side < polygon->count; ++side) {
         point start = polygon->vertex[side], end = polygon->vertex[(side+1)%polygon->count];
@@ -361,9 +388,9 @@ enum billiard_polygon_status billiard_polygon_locate(const billiard_polygon *pol
         if (boundary) { *location = 0; return BILLIARD_POLYGON_OK; }
         point relative = difference(&work, position, start);
         point edge = difference(&work, end, start);
-        int orientation = sign(cross(&work, edge, relative));
-        int start_y = sign(subtract(&work, start.y, position.y));
-        int end_y = sign(subtract(&work, end.y, position.y));
+        int orientation = sign(&work, cross(&work, edge, relative));
+        int start_y = sign(&work, subtract(&work, start.y, position.y));
+        int end_y = sign(&work, subtract(&work, end.y, position.y));
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
         if (start_y <= 0 && end_y > 0 && orientation > 0) ++winding;
         if (start_y > 0 && end_y <= 0 && orientation < 0) --winding;
@@ -403,7 +430,7 @@ enum billiard_polygon_status billiard_polygon_rectangle(const billiard_table *ta
 
 enum billiard_polygon_status billiard_polygon_begin(const billiard_polygon *polygon,
     point position, point direction, uint32_t step_limit, billiard_polygon_ray *ray) {
-    if (!ray || !valid_point(direction) || (!sign(direction.x) && !sign(direction.y)))
+    if (!ray || !valid_point(direction) || zero_vector(direction))
         return BILLIARD_POLYGON_INVALID;
     enum billiard_polygon_status status = billiard_polygon_validate(polygon);
     if (status != BILLIARD_POLYGON_OK) return status;
@@ -411,28 +438,28 @@ enum billiard_polygon_status billiard_polygon_begin(const billiard_polygon *poly
     status = billiard_polygon_locate(polygon, position, &location);
     if (status != BILLIARD_POLYGON_OK) return status;
     if (location != 1) return BILLIARD_POLYGON_INVALID;
-    *ray = (billiard_polygon_ray){position, direction, SIZE_MAX, step_limit, 0.0, 0, SIZE_MAX};
+    *ray = (billiard_polygon_ray){position, direction, SIZE_MAX, step_limit, 0.0, 0, SIZE_MAX, polygon->field};
     return BILLIARD_POLYGON_OK;
 }
 
 enum billiard_polygon_status billiard_polygon_depart(const billiard_polygon *polygon,
     size_t vertex, point direction, uint32_t step_limit, billiard_polygon_ray *ray) {
-    if (!ray || !valid_point(direction) || (!sign(direction.x) && !sign(direction.y)))
+    if (!ray || !valid_point(direction) || zero_vector(direction))
         return BILLIARD_POLYGON_INVALID;
     enum billiard_polygon_status status = billiard_polygon_validate(polygon);
     if (status != BILLIARD_POLYGON_OK) return status;
     if (vertex >= polygon->count) return BILLIARD_POLYGON_INVALID;
-    calculation work = {0};
+    calculation work = {0, field_radicand(polygon->field)};
     point before = difference(&work,polygon->vertex[vertex],polygon->vertex[(vertex+polygon->count-1)%polygon->count]);
     point after = difference(&work,polygon->vertex[(vertex+1)%polygon->count],polygon->vertex[vertex]);
-    int turn = sign(cross(&work,before,after));
-    int first_side = sign(cross(&work,before,direction));
-    int second_side = sign(cross(&work,after,direction));
+    int turn = sign(&work, cross(&work,before,after));
+    int first_side = sign(&work, cross(&work,before,direction));
+    int second_side = sign(&work, cross(&work,after,direction));
     if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
     int allowed = turn >= 0 ? (first_side >= 0 && second_side >= 0) :
                               (first_side >= 0 || second_side >= 0);
     if (!allowed) return BILLIARD_POLYGON_INVALID;
-    *ray = (billiard_polygon_ray){polygon->vertex[vertex],direction,SIZE_MAX,step_limit,0.0,0,vertex};
+    *ray = (billiard_polygon_ray){polygon->vertex[vertex],direction,SIZE_MAX,step_limit,0.0,0,vertex,polygon->field};
     return BILLIARD_POLYGON_OK;
 }
 
@@ -440,12 +467,13 @@ enum billiard_polygon_status billiard_polygon_next(const billiard_polygon *polyg
     billiard_polygon_ray *ray, billiard_polygon_event *event) {
     if (!ray || !event || !valid_point(ray->position) || !valid_point(ray->direction) ||
         !isfinite(ray->distance) || ray->distance < 0 ||
-        (!sign(ray->direction.x) && !sign(ray->direction.y))) return BILLIARD_POLYGON_INVALID;
+        zero_vector(ray->direction)) return BILLIARD_POLYGON_INVALID;
     enum billiard_polygon_status status = billiard_polygon_validate(polygon);
     if (status != BILLIARD_POLYGON_OK) return status;
+    if (ray->field != polygon->field) return BILLIARD_POLYGON_INVALID;
     if (ray->stopped) return BILLIARD_POLYGON_STOPPED;
     if (!ray->steps_remaining) return BILLIARD_POLYGON_STEP_LIMIT;
-    calculation work = {0};
+    calculation work = {0, field_radicand(polygon->field)};
     int location;
     status = billiard_polygon_locate(polygon, ray->position, &location);
     if (status != BILLIARD_POLYGON_OK) return status;
@@ -456,20 +484,20 @@ enum billiard_polygon_status billiard_polygon_next(const billiard_polygon *polyg
         if (status != BILLIARD_POLYGON_OK) return status;
         point offset = difference(&work,ray->position,checked.position);
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-        if (sign(offset.x) || sign(offset.y) || ray->previous_side != SIZE_MAX) return BILLIARD_POLYGON_INVALID;
+        if (!zero_vector(offset) || ray->previous_side != SIZE_MAX) return BILLIARD_POLYGON_INVALID;
     } else if (location == 0) {
         if (ray->previous_side >= polygon->count) return BILLIARD_POLYGON_INVALID;
         point start = polygon->vertex[ray->previous_side];
         point end = polygon->vertex[(ray->previous_side+1)%polygon->count];
         int boundary = on_segment(&work, ray->position, start, end);
         point edge = difference(&work, end, start);
-        int inward = sign(cross(&work, edge, ray->direction));
+        int inward = sign(&work, cross(&work, edge, ray->direction));
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
         if (!boundary || inward <= 0) return BILLIARD_POLYGON_INVALID;
         point before = difference(&work, ray->position, start);
         point after = difference(&work, ray->position, end);
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-        if ((!sign(before.x) && !sign(before.y)) || (!sign(after.x) && !sign(after.y)))
+        if (zero_vector(before) || zero_vector(after))
             return BILLIARD_POLYGON_INVALID;
     }
     size_t chosen_side = SIZE_MAX, chosen_vertex = SIZE_MAX;
@@ -480,16 +508,16 @@ enum billiard_polygon_status billiard_polygon_next(const billiard_polygon *polyg
         point offset = difference(&work, start, ray->position);
         exact determinant = cross(&work, ray->direction, edge);
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-        if (!sign(determinant)) continue;
+        if (is_zero(determinant)) continue;
         exact ray_numerator = cross(&work, offset, edge);
         exact edge_numerator = cross(&work, offset, ray->direction);
         exact parameter = divide(&work, ray_numerator, determinant);
         exact fraction = divide(&work, edge_numerator, determinant);
-        int fraction_end = sign(subtract(&work, fraction, integer(1)));
+        int fraction_end = sign(&work, subtract(&work, fraction, integer(1)));
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-        if (sign(parameter) <= 0 || sign(fraction) < 0 || fraction_end > 0) continue;
-        size_t vertex = !sign(fraction) ? side : (!fraction_end ? (side+1)%polygon->count : SIZE_MAX);
-        int order = chosen_side == SIZE_MAX ? -1 : sign(subtract(&work, parameter, nearest));
+        if (sign(&work, parameter) <= 0 || sign(&work, fraction) < 0 || fraction_end > 0) continue;
+        size_t vertex = is_zero(fraction) ? side : (!fraction_end ? (side+1)%polygon->count : SIZE_MAX);
+        int order = chosen_side == SIZE_MAX ? -1 : sign(&work, subtract(&work, parameter, nearest));
         if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
         if (order < 0) { nearest = parameter; chosen_side = side; chosen_vertex = vertex; }
         else if (!order && (vertex == SIZE_MAX || vertex != chosen_vertex))
@@ -510,8 +538,8 @@ enum billiard_polygon_status billiard_polygon_next(const billiard_polygon *polyg
         outgoing = difference(&work, twice_projection, ray->direction);
     }
     if (work.failed) return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
-    double length = hypot(billiard_exact_display(displacement.x),
-                          billiard_exact_display(displacement.y));
+    double length = hypot(billiard_polygon_display(polygon->field, displacement.x),
+                          billiard_polygon_display(polygon->field, displacement.y));
     if (!isfinite(length) || length <= 0 || !isfinite(ray->distance+length))
         return BILLIARD_POLYGON_ARITHMETIC_LIMIT;
     status = chosen_vertex == SIZE_MAX ? BILLIARD_POLYGON_EDGE : BILLIARD_POLYGON_VERTEX_STOP;
