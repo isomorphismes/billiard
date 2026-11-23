@@ -7,17 +7,22 @@
 
 #define BILLIARD_POLYGON_MAX_VERTICES 32u
 
-/* Exactly (rational + radical * sqrt(3)) / denominator. Canonical values
+/* Coefficients for (rational + radical * sqrt(d)) / denominator. The
+ * standalone exact API uses d=3. Polygon operations use the polygon field.
+ * Canonical values
  * have positive denominator, no INT32_MIN coefficient, and common gcd 1.
  * Arithmetic exhaustion is reported, never converted to a floating tie. */
 typedef struct { int32_t rational, radical, denominator; } billiard_exact;
 typedef struct { billiard_exact x, y; } billiard_exact_point;
 typedef struct { uint16_t numerator, denominator; } billiard_angle;
 
+enum billiard_polygon_field { BILLIARD_SQRT3_TWELFTHS = 0, BILLIARD_SQRT2_EIGHTHS };
+
 typedef struct {
     size_t count;
     billiard_exact_point vertex[BILLIARD_POLYGON_MAX_VERTICES];
     billiard_angle angle[BILLIARD_POLYGON_MAX_VERTICES]; /* interior angle / pi */
+    enum billiard_polygon_field field; /* zero-initialized polygons keep the original field */
 } billiard_polygon;
 
 enum billiard_polygon_status {
@@ -38,6 +43,7 @@ typedef struct {
     double distance; /* approximate display length; never used in predicates */
     int stopped;
     size_t launch_vertex; /* SIZE_MAX except for a validated vertex departure */
+    enum billiard_polygon_field field; /* coefficients in position and direction */
 } billiard_polygon_ray;
 
 typedef struct {
@@ -51,6 +57,7 @@ typedef struct {
 int billiard_exact_make(int32_t rational, int32_t radical, int32_t denominator,
                        billiard_exact *result);
 double billiard_exact_display(billiard_exact number);
+double billiard_polygon_display(enum billiard_polygon_field field, billiard_exact number);
 
 /* Shared bounded field operations for cover/flow modules. Return 0 on success;
  * invalid input or intermediate exhaustion returns -1 without changing output. */
@@ -69,8 +76,8 @@ enum billiard_polygon_status billiard_polygon_fixture(enum billiard_fixture fixt
                                                      billiard_polygon *polygon);
 int billiard_polygon_direction(unsigned heading_twelfths_of_pi, billiard_exact_point *direction);
 
-/* Certification currently recognizes exact directions in multiples of pi/12
- * relative to the first side, using algebra in Q(sqrt(3)). The caller must
+/* Certification recognizes exact relative headings in multiples of pi/12
+ * for Q(sqrt(3)), or pi/8 for Q(sqrt(2)). The caller must
  * supply angle claims; validation proves them from the exact vertices.
  * Other rational-angle families return UNSUPPORTED_ANGLE, not INVALID. */
 enum billiard_polygon_status billiard_polygon_validate(const billiard_polygon *polygon);

@@ -5,21 +5,35 @@ It reflects the direction at a regular edge and stops at a vertex. Every
 intersection, ordering comparison, angle check and reflection uses exact
 arithmetic. A close pair of events is never merged using a tolerance.
 
-This implementation is bounded. Coordinates have the form (a + b√3)/d, with
+This implementation is bounded. Coordinates have the form (a + b√r)/d, with r = 2 or 3,
 32-bit integer coefficients and a positive denominator. Checked operations
 return ARITHMETIC_LIMIT if an intermediate value cannot be represented. No
 event or ray state is committed on failure. Conservative limits can occur
 even when the eventual reduced answer would fit. This is not arbitrary
 precision arithmetic or support for every rational-angle polygon.
 
-Angle certification currently covers sides in multiples of π/12 relative
-to the first side. Exact cross products identify parallel directions and
-exact dot products select their signs. The interior angle at each vertex
-is derived from those headings and checked against the supplied rational
-multiple of π. A floating-point angle, a missing tag, or an unsupported
-direction cannot certify a polygon. The initial side can have any direction
-representable in this field. New angle families require a new exact domain
-and certificate implementation; sampled or rounded angles are insufficient.
+The polygon selects its coordinate field and certified heading family. A
+zero-initialized polygon uses Q(√3) with headings in multiples of π/12.
+Set `field = BILLIARD_SQRT2_EIGHTHS` for Q(√2) and multiples of π/8. The
+headings are relative to the first side in both cases. The eighth-angle
+directions follow from tan(π/8) = √2 − 1, swapping coordinates and quarter
+turns. Exact determinants check parallelism and dot products choose the
+orientation. Validation verifies every claimed interior angle against the
+vertices. Missing or incorrect claims and unsupported directions fail.
+
+All vertices, rays and events of one polygon use its field. Use
+`billiard_polygon_display(polygon.field, number)` for drawing radical
+coordinates. The standalone exact arithmetic and translation-cover API
+retain their Q(√3) contract. Unfolding an eighth-angle polygon returns
+`BILLIARD_SURFACE_UNSUPPORTED_FIELD`.
+
+The π/8 regression triangle has vertices (0,0), (1,0), (1,√2−1).
+Vertical incidence at x hits the diagonal at y=(√2−1)x and leaves in
+direction (√2/2, −√2/2). Eight starting positions check this closed form.
+During `make test`, the independent half-plane oracle also compares 3,360
+rays against the ICK test executable. It uses rational lower and upper
+bounds for √2 to order exits and checks every exact parameter, endpoint,
+reflection and vertex stop.
 
 Geometry is counterclockwise in its coordinate plane. Validation rejects
 zero edges, backtracking, nonadjacent crossings or touching, nonpositive

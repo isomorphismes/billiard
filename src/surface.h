@@ -7,7 +7,8 @@
 #define BILLIARD_SURFACE_MAX_CORNERS (BILLIARD_SURFACE_MAX_COPIES * BILLIARD_POLYGON_MAX_VERTICES)
 
 enum billiard_surface_status { BILLIARD_SURFACE_OK, BILLIARD_SURFACE_INVALID,
-    BILLIARD_SURFACE_ARITHMETIC_LIMIT, BILLIARD_SURFACE_COPY_LIMIT };
+    BILLIARD_SURFACE_ARITHMETIC_LIMIT, BILLIARD_SURFACE_COPY_LIMIT,
+    BILLIARD_SURFACE_UNSUPPORTED_FIELD };
 typedef struct { billiard_exact_matrix placement; int orientation; } billiard_surface_copy;
 typedef struct { size_t target_copy, target_side; exact_point translation; } billiard_surface_seam;
 typedef struct { unsigned angle_twelfths, zero_order; size_t representative; } billiard_surface_cone;

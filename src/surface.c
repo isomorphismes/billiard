@@ -122,6 +122,7 @@ enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *pol
     enum billiard_polygon_status polygon_status = billiard_polygon_validate(polygon);
     if (polygon_status == BILLIARD_POLYGON_ARITHMETIC_LIMIT) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
     if (polygon_status != BILLIARD_POLYGON_OK) return BILLIARD_SURFACE_INVALID;
+    if (polygon->field != BILLIARD_SQRT3_TWELFTHS) return BILLIARD_SURFACE_UNSUPPORTED_FIELD;
     unsigned expected = required_copies(polygon);
     if (!expected) return BILLIARD_SURFACE_COPY_LIMIT;
     billiard_surface proposed = {0};
@@ -160,6 +161,7 @@ enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *pol
 enum billiard_surface_status billiard_surface_validate(const billiard_surface *surface) {
     if (!surface || surface->copy_count < 2 || surface->copy_count > BILLIARD_SURFACE_MAX_COPIES)
         return BILLIARD_SURFACE_INVALID;
+    if (surface->polygon.field != BILLIARD_SQRT3_TWELFTHS) return BILLIARD_SURFACE_UNSUPPORTED_FIELD;
     enum billiard_polygon_status polygon_status = billiard_polygon_validate(&surface->polygon);
     if (polygon_status == BILLIARD_POLYGON_ARITHMETIC_LIMIT) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
     if (polygon_status != BILLIARD_POLYGON_OK || surface->copy_count != required_copies(&surface->polygon))
