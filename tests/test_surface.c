@@ -88,6 +88,10 @@ static void eighth_triangle_cover(void) {
 
     int seen[2][8] = {{0}};
     const int double_edge_angle[] = {0,4,1};
+    const exact_number minus_two_cos[8] = {
+        {-2,0,1},{0,-1,1},{0,0,1},{0,1,1},
+        {2,0,1},{0,1,1},{0,0,1},{0,-1,1}
+    };
     exact_work work = {.field = triangle.field};
     for (size_t copy = 0; copy < surface.copy_count; ++copy) {
         unsigned heading = octagonal_heading(&surface.copy[copy]);
@@ -99,6 +103,15 @@ static void eighth_triangle_cover(void) {
             assert(target < 16 && surface.copy[target].orientation == -orientation);
             unsigned expected = (unsigned)(8+(int)heading+orientation*double_edge_angle[side])%8;
             assert(octagonal_heading(&surface.copy[target]) == expected);
+            /* Both the horizontal and sloping edges pass through the
+             * origin. At x=1 the source reflection shifts endpoints by
+             * (-2,0), which the chart carries to -2 times column one. */
+            exact_point shift = {exact_integer(0),exact_integer(0)};
+            if (side == 1) {
+                shift.x = minus_two_cos[heading];
+                shift.y = minus_two_cos[(heading+6)%8];
+            }
+            assert(exact_point_equal(surface.seam[copy][side].translation,shift));
             exact_point vertex = billiard_surface_vertex(&work,&surface,copy,side);
             exact_point folded = billiard_surface_fold(&work,&surface,copy,vertex);
             assert(!work.failed && exact_point_equal(folded,triangle.vertex[side]));
