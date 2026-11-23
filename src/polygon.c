@@ -201,27 +201,33 @@ int billiard_exact_equal(exact first, exact second) {
 }
 
 #define FIELD_OPERATION(name, operation) \
-int name(exact first, exact second, exact *result) { \
-    if (!result || !canonical(first) || !canonical(second)) return -1; \
-    calculation work = {0, 3}; \
+int billiard_field_##name(enum billiard_polygon_field field, exact first, exact second, exact *result) { \
+    calculation work = {0, field_radicand(field)}; \
+    if (!work.radicand || !result || !canonical(first) || !canonical(second)) return -1; \
     exact proposed = operation(&work, first, second); \
     if (work.failed) return -1; \
     *result = proposed; \
     return 0; \
+} \
+int billiard_exact_##name(exact first, exact second, exact *result) { \
+    return billiard_field_##name(BILLIARD_SQRT3_TWELFTHS,first,second,result); \
 }
-FIELD_OPERATION(billiard_exact_add, add)
-FIELD_OPERATION(billiard_exact_subtract, subtract)
-FIELD_OPERATION(billiard_exact_multiply, multiply)
-FIELD_OPERATION(billiard_exact_divide, divide)
+FIELD_OPERATION(add, add)
+FIELD_OPERATION(subtract, subtract)
+FIELD_OPERATION(multiply, multiply)
+FIELD_OPERATION(divide, divide)
 #undef FIELD_OPERATION
 
-int billiard_exact_compare(exact first, exact second, int *ordering) {
-    if (!ordering || !canonical(first) || !canonical(second)) return -1;
-    calculation work = {0, 3};
+int billiard_field_compare(enum billiard_polygon_field field, exact first, exact second, int *ordering) {
+    calculation work = {0, field_radicand(field)};
+    if (!work.radicand || !ordering || !canonical(first) || !canonical(second)) return -1;
     exact delta = subtract(&work, first, second);
     if (work.failed) return -1;
     *ordering = sign(&work, delta);
     return 0;
+}
+int billiard_exact_compare(exact first, exact second, int *ordering) {
+    return billiard_field_compare(BILLIARD_SQRT3_TWELFTHS,first,second,ordering);
 }
 
 enum billiard_polygon_status billiard_polygon_fixture(enum billiard_fixture kind,

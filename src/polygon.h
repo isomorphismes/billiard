@@ -68,6 +68,11 @@ int billiard_exact_subtract(billiard_exact first, billiard_exact second, billiar
 int billiard_exact_multiply(billiard_exact first, billiard_exact second, billiard_exact *result);
 int billiard_exact_divide(billiard_exact first, billiard_exact second, billiard_exact *result);
 int billiard_exact_compare(billiard_exact first, billiard_exact second, int *ordering);
+int billiard_field_add(enum billiard_polygon_field field, billiard_exact first, billiard_exact second, billiard_exact *result);
+int billiard_field_subtract(enum billiard_polygon_field field, billiard_exact first, billiard_exact second, billiard_exact *result);
+int billiard_field_multiply(enum billiard_polygon_field field, billiard_exact first, billiard_exact second, billiard_exact *result);
+int billiard_field_divide(enum billiard_polygon_field field, billiard_exact first, billiard_exact second, billiard_exact *result);
+int billiard_field_compare(enum billiard_polygon_field field, billiard_exact first, billiard_exact second, int *ordering);
 int billiard_exact_equal(billiard_exact first, billiard_exact second);
 
 enum billiard_fixture { BILLIARD_SQUARE, BILLIARD_RECTANGLE, BILLIARD_RIGHT_TRIANGLE,

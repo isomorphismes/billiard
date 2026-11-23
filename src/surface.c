@@ -35,7 +35,7 @@ static billiard_exact_matrix side_reflection(exact_work *work,
 
 exact_point billiard_surface_vertex(exact_work *work, const billiard_surface *surface,
                                    size_t copy, size_t vertex) {
-    if (!surface || copy >= surface->copy_count || vertex >= surface->polygon.count) {
+    if (!surface || work->field != surface->polygon.field || copy >= surface->copy_count || vertex >= surface->polygon.count) {
         work->failed = 1; return (exact_point){exact_integer(0),exact_integer(0)};
     }
     return exact_transform(work,surface->copy[copy].placement,surface->polygon.vertex[vertex]);
@@ -43,7 +43,7 @@ exact_point billiard_surface_vertex(exact_work *work, const billiard_surface *su
 
 exact_point billiard_surface_fold(exact_work *work, const billiard_surface *surface,
                                  size_t copy, exact_point point) {
-    if (!surface || copy >= surface->copy_count || !exact_point_valid(point)) {
+    if (!surface || work->field != surface->polygon.field || copy >= surface->copy_count || !exact_point_valid(point)) {
         work->failed = 1; return (exact_point){exact_integer(0),exact_integer(0)};
     }
     return exact_transform(work,exact_transpose(surface->copy[copy].placement),point);
@@ -63,6 +63,7 @@ static enum billiard_surface_status topology(billiard_surface *surface) {
     size_t corners = surface->copy_count * sides;
     size_t parent[BILLIARD_SURFACE_MAX_CORNERS], class_number[BILLIARD_SURFACE_MAX_CORNERS];
     size_t connected[BILLIARD_SURFACE_MAX_COPIES];
+    unsigned angle_twenty_fourths[BILLIARD_SURFACE_MAX_CORNERS] = {0};
     for (size_t corner = 0; corner < corners; ++corner) { parent[corner] = corner; class_number[corner] = SIZE_MAX; }
     for (size_t copy = 0; copy < surface->copy_count; ++copy) connected[copy] = copy;
     for (size_t copy = 0; copy < surface->copy_count; ++copy)
@@ -87,8 +88,8 @@ static enum billiard_surface_status topology(billiard_surface *surface) {
             size_t number = class_number[root];
             surface->vertex_class[copy][vertex] = number;
             billiard_angle angle = surface->polygon.angle[vertex];
-            if ((12u*angle.numerator)%angle.denominator) return BILLIARD_SURFACE_INVALID;
-            surface->cone[number].angle_twelfths += 12u*angle.numerator/angle.denominator;
+            if ((24u*angle.numerator)%angle.denominator) return BILLIARD_SURFACE_INVALID;
+            angle_twenty_fourths[number] += 24u*angle.numerator/angle.denominator;
         }
     surface->edge_count = (unsigned)(corners/2);
     surface->euler_characteristic = (int)surface->vertex_class_count - (int)surface->edge_count + (int)surface->copy_count;
@@ -97,14 +98,15 @@ static enum billiard_surface_status topology(billiard_surface *surface) {
     surface->genus = (unsigned)(twice_genus/2);
     unsigned zero_sum = 0;
     for (size_t number = 0; number < surface->vertex_class_count; ++number) {
-        unsigned angle = surface->cone[number].angle_twelfths;
-        if (angle < 24 || angle%24) return BILLIARD_SURFACE_INVALID;
-        surface->cone[number].zero_order = angle/24-1;
-        zero_sum += angle/24-1;
+        unsigned angle = angle_twenty_fourths[number];
+        if (angle < 48 || angle%48) return BILLIARD_SURFACE_INVALID;
+        surface->cone[number].angle_twelfths = angle/2;
+        surface->cone[number].zero_order = angle/48-1;
+        zero_sum += surface->cone[number].zero_order;
     }
     if (2*surface->genus < 2*surface->components || zero_sum != 2*surface->genus-2*surface->components)
         return BILLIARD_SURFACE_INVALID;
-    exact_work work = {0};
+    exact_work work = {.field = surface->polygon.field};
     exact_number twice_area = exact_integer(0);
     for (size_t side = 0; side < sides; ++side) {
         exact_number piece = exact_cross(&work,surface->polygon.vertex[side],surface->polygon.vertex[(side+1)%sides]);
@@ -122,14 +124,13 @@ enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *pol
     enum billiard_polygon_status polygon_status = billiard_polygon_validate(polygon);
     if (polygon_status == BILLIARD_POLYGON_ARITHMETIC_LIMIT) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
     if (polygon_status != BILLIARD_POLYGON_OK) return BILLIARD_SURFACE_INVALID;
-    if (polygon->field != BILLIARD_SQRT3_TWELFTHS) return BILLIARD_SURFACE_UNSUPPORTED_FIELD;
     unsigned expected = required_copies(polygon);
     if (!expected) return BILLIARD_SURFACE_COPY_LIMIT;
     billiard_surface proposed = {0};
     proposed.polygon = *polygon;
     proposed.copy_count = 1;
     proposed.copy[0] = (billiard_surface_copy){exact_identity(),1};
-    exact_work work = {0};
+    exact_work work = {.field = polygon->field};
     billiard_exact_matrix reflections[BILLIARD_POLYGON_MAX_VERTICES];
     for (size_t side = 0; side < polygon->count; ++side) reflections[side] = side_reflection(&work,polygon,side);
     if (work.failed) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
@@ -161,13 +162,12 @@ enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *pol
 enum billiard_surface_status billiard_surface_validate(const billiard_surface *surface) {
     if (!surface || surface->copy_count < 2 || surface->copy_count > BILLIARD_SURFACE_MAX_COPIES)
         return BILLIARD_SURFACE_INVALID;
-    if (surface->polygon.field != BILLIARD_SQRT3_TWELFTHS) return BILLIARD_SURFACE_UNSUPPORTED_FIELD;
     enum billiard_polygon_status polygon_status = billiard_polygon_validate(&surface->polygon);
     if (polygon_status == BILLIARD_POLYGON_ARITHMETIC_LIMIT) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
     if (polygon_status != BILLIARD_POLYGON_OK || surface->copy_count != required_copies(&surface->polygon))
         return BILLIARD_SURFACE_INVALID;
     if (!exact_matrix_equal(surface->copy[0].placement,exact_identity())) return BILLIARD_SURFACE_INVALID;
-    exact_work work = {0};
+    exact_work work = {.field = surface->polygon.field};
     size_t sides = surface->polygon.count;
     for (size_t copy = 0; copy < surface->copy_count; ++copy) {
         billiard_exact_matrix placement = surface->copy[copy].placement;
@@ -190,6 +190,7 @@ enum billiard_surface_status billiard_surface_validate(const billiard_surface *s
             if (reverse.target_copy != copy || reverse.target_side != side) return BILLIARD_SURFACE_INVALID;
             billiard_exact_matrix reflection = side_reflection(&work,&surface->polygon,side);
             billiard_exact_matrix expected = exact_matrix_product(&work,placement,reflection);
+            if (work.failed) return BILLIARD_SURFACE_ARITHMETIC_LIMIT;
             if (!exact_matrix_equal(expected,surface->copy[seam.target_copy].placement)) return BILLIARD_SURFACE_INVALID;
             for (unsigned endpoint = 0; endpoint < 2; ++endpoint) {
                 size_t vertex = (side+endpoint)%sides;
@@ -222,6 +223,7 @@ enum billiard_surface_status billiard_surface_validate(const billiard_surface *s
 
 int billiard_surface_write(FILE *output, const billiard_surface *surface) {
     if (!output || billiard_surface_validate(surface) != BILLIARD_SURFACE_OK) return -1;
+    if (surface->polygon.field == BILLIARD_SQRT2_EIGHTHS) fprintf(output,"radicand\t2\n");
     fprintf(output,"model\treflected_translation_cover\ncopies\t%zu\nedges\t%u\nvertex_classes\t%zu\ncomponents\t%u\neuler\t%d\ngenus\t%u\narea_exact\t%d\t%d\t%d\n",
         surface->copy_count,surface->edge_count,surface->vertex_class_count,surface->components,
         surface->euler_characteristic,surface->genus,surface->area.rational,surface->area.radical,surface->area.denominator);

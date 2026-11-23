@@ -23,9 +23,9 @@ vertices. Missing or incorrect claims and unsupported directions fail.
 
 All vertices, rays and events of one polygon use its field. Use
 `billiard_polygon_display(polygon.field, number)` for drawing radical
-coordinates. The standalone exact arithmetic and translation-cover API
-retain their Q(√3) contract. Unfolding an eighth-angle polygon returns
-`BILLIARD_SURFACE_UNSUPPORTED_FIELD`.
+coordinates. The translation cover computes in the polygon’s field. Standalone
+`billiard_exact_*` arithmetic defaults to Q(√3); `billiard_field_*` accepts
+an explicit coordinate field.
 
 The π/8 regression triangle has vertices (0,0), (1,0), (1,√2−1).
 Vertical incidence at x hits the diagonal at y=(√2−1)x and leaves in

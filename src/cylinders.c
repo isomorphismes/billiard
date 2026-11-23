@@ -434,7 +434,7 @@ enum billiard_cylinder_status billiard_cylinders(const billiard_surface *surface
         !limits->max_strips || limits->max_strips > BILLIARD_MAX_STRIPS || !limits->max_crossings ||
         limits->max_crossings > BILLIARD_MAX_STRIPS || !limits->max_connections || limits->max_connections > BILLIARD_MAX_CONNECTIONS ||
         (limits->mark_regular_vertices != 0 && limits->mark_regular_vertices != 1)) return BILLIARD_CYLINDER_INVALID;
-    enum billiard_surface_status surface_status = billiard_surface_validate(surface);
+    enum billiard_surface_status surface_status = billiard_surface_validate_twelfths(surface);
     if (surface_status != BILLIARD_SURFACE_OK)
         return surface_status == BILLIARD_SURFACE_ARITHMETIC_LIMIT ? BILLIARD_CYLINDER_ARITHMETIC_LIMIT : BILLIARD_CYLINDER_INVALID;
     exact_work validation = {0};
@@ -493,7 +493,7 @@ enum billiard_cylinder_status billiard_direction_sweep(const billiard_surface *s
     unsigned direction_bound, unsigned max_directions, const billiard_cylinder_limits *limits,
     FILE *raw_evidence, billiard_counting_report *report) {
     if (!report || !limits || !direction_bound || direction_bound > 16 || !max_directions ||
-        max_directions > BILLIARD_MAX_DIRECTIONS || billiard_surface_validate(surface) != BILLIARD_SURFACE_OK)
+        max_directions > BILLIARD_MAX_DIRECTIONS || billiard_surface_validate_twelfths(surface) != BILLIARD_SURFACE_OK)
         return BILLIARD_CYLINDER_INVALID;
     billiard_counting_report proposed = {0};
     proposed.direction_bound = direction_bound; proposed.limits = *limits;

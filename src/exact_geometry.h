@@ -5,32 +5,32 @@
 typedef billiard_exact exact_number;
 typedef billiard_exact_point exact_point;
 typedef struct { exact_number entry[2][2]; } billiard_exact_matrix;
-typedef struct { int failed; } exact_work;
+typedef struct { int failed; enum billiard_polygon_field field; } exact_work;
 
 static inline exact_number exact_integer(int32_t value) { return (exact_number){value,0,1}; }
 static inline exact_number exact_sum(exact_work *work, exact_number first, exact_number second) {
     exact_number result = exact_integer(0);
-    if (billiard_exact_add(first,second,&result)) work->failed = 1;
+    if (billiard_field_add(work->field,first,second,&result)) work->failed = 1;
     return result;
 }
 static inline exact_number exact_difference(exact_work *work, exact_number first, exact_number second) {
     exact_number result = exact_integer(0);
-    if (billiard_exact_subtract(first,second,&result)) work->failed = 1;
+    if (billiard_field_subtract(work->field,first,second,&result)) work->failed = 1;
     return result;
 }
 static inline exact_number exact_product(exact_work *work, exact_number first, exact_number second) {
     exact_number result = exact_integer(0);
-    if (billiard_exact_multiply(first,second,&result)) work->failed = 1;
+    if (billiard_field_multiply(work->field,first,second,&result)) work->failed = 1;
     return result;
 }
 static inline exact_number exact_quotient(exact_work *work, exact_number first, exact_number second) {
     exact_number result = exact_integer(0);
-    if (billiard_exact_divide(first,second,&result)) work->failed = 1;
+    if (billiard_field_divide(work->field,first,second,&result)) work->failed = 1;
     return result;
 }
 static inline int exact_order(exact_work *work, exact_number first, exact_number second) {
     int ordering = 0;
-    if (billiard_exact_compare(first,second,&ordering)) work->failed = 1;
+    if (billiard_field_compare(work->field,first,second,&ordering)) work->failed = 1;
     return ordering;
 }
 static inline exact_point exact_point_sum(exact_work *work, exact_point first, exact_point second) {
