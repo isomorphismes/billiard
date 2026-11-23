@@ -8,7 +8,7 @@ static enum billiard_flow_status polygon_result(enum billiard_polygon_status sta
 static enum billiard_flow_status begin(const billiard_surface *surface, size_t copy,
     exact_point position, size_t vertex, exact_point direction, exact_number budget,
     uint32_t crossings, billiard_flow *flow) {
-    if (!flow || billiard_surface_validate(surface) != BILLIARD_SURFACE_OK ||
+    if (!flow || billiard_surface_validate_twelfths(surface) != BILLIARD_SURFACE_OK ||
         copy >= surface->copy_count || !exact_point_valid(direction) || !billiard_exact_valid(budget))
         return BILLIARD_FLOW_INVALID;
     exact_work work = {0};
@@ -82,7 +82,7 @@ static enum billiard_flow_status depart_regular(const billiard_surface *surface,
 
 enum billiard_flow_status billiard_flow_next(const billiard_surface *surface,
     billiard_flow *flow, billiard_flow_event *event) {
-    if (!flow || !event || billiard_surface_validate(surface) != BILLIARD_SURFACE_OK ||
+    if (!flow || !event || billiard_surface_validate_twelfths(surface) != BILLIARD_SURFACE_OK ||
         flow->copy >= surface->copy_count || flow->initial_copy >= surface->copy_count ||
         !exact_point_valid(flow->direction) || !billiard_exact_valid(flow->parameter) ||
         !billiard_exact_valid(flow->parameter_left)) return BILLIARD_FLOW_INVALID;

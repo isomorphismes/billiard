@@ -30,7 +30,14 @@ typedef struct {
 enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *polygon,
                                                     billiard_surface *surface);
 enum billiard_surface_status billiard_surface_validate(const billiard_surface *surface);
+/* Existing dynamics and period algorithms consume Q(sqrt(3)) charts. */
+static inline enum billiard_surface_status billiard_surface_validate_twelfths(const billiard_surface *surface) {
+    if (surface && surface->polygon.field != BILLIARD_SQRT3_TWELFTHS)
+        return BILLIARD_SURFACE_UNSUPPORTED_FIELD;
+    return billiard_surface_validate(surface);
+}
 int billiard_surface_write(FILE *output, const billiard_surface *surface);
+/* Initialize work.field to surface->polygon.field for chart operations. */
 exact_point billiard_surface_vertex(exact_work *work, const billiard_surface *surface,
                                    size_t copy, size_t original_vertex);
 exact_point billiard_surface_fold(exact_work *work, const billiard_surface *surface,

@@ -3,7 +3,7 @@
 
 enum billiard_period_status billiard_periods(const billiard_surface *surface, billiard_period_ledger *ledger) {
     if (!ledger) return BILLIARD_PERIOD_INVALID;
-    enum billiard_surface_status surface_status = billiard_surface_validate(surface);
+    enum billiard_surface_status surface_status = billiard_surface_validate_twelfths(surface);
     if (surface_status != BILLIARD_SURFACE_OK)
         return surface_status == BILLIARD_SURFACE_ARITHMETIC_LIMIT ? BILLIARD_PERIOD_ARITHMETIC_LIMIT : BILLIARD_PERIOD_INVALID;
     billiard_period_ledger proposed = {0};
