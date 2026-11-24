@@ -37,3 +37,19 @@ Tests compare square/rectangle foldback with independent mirror formulas,
 check primitive return parameters in all five fixtures, continue across regular
 square vertices, stop at the L surface's genuine cone, and reject a nearly
 periodic or irrational-direction finite trace as a periodic certificate.
+
+## Eighth-angle charts
+
+Flow uses the coordinate field of the translation cover for every chart
+change, flight parameter, first-return comparison and displayed distance.
+Q(√2) events append a `radicand=2` field to the existing TSV row.
+
+For the triangle (0,0), (1,0), (1,√2−1), start at (1/2,1/8) going
+vertically up. In the folded triangle the first four hits are the slope,
+base, vertical side, and slope again. In the developed plane the x
+coordinate stays 1/2. The successive y coordinates are (√2−1)/2, 1/2,
+√2−1/2 and 5(√2−1)/2. The flow tests compare the exact folded endpoints
+and segment parameters with these line intersections, continue through the
+regular right-angle lift, and stop at the order-two cone over (1,√2−1).
+A separate horizontal orbit in a √2-wide rectangle returns after two
+crossings with exact parameter 2√2.

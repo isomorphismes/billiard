@@ -54,5 +54,5 @@ is 8√2−8. The test independently checks all 48 directed seam transitions.
 Triangle corners can contribute odd numbers of π/8. Topology sums in
 units of π/24 before emitting the existing whole-cone angle in units of
 π/12. The Q(√2) surface report starts with `radicand<TAB>2`. The
-existing flow, period and cylinder routines continue to require Q(√3)
+existing period and cylinder routines continue to require Q(√3)
 charts.
