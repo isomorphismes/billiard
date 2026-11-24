@@ -25,6 +25,7 @@ typedef struct {
     exact_point global_direction;
     exact_number parameter, parameter_start;
     double length; /* display estimate only */
+    enum billiard_polygon_field field; /* interprets all coefficient triples */
 } billiard_flow_event;
 
 enum billiard_flow_status billiard_flow_begin(const billiard_surface *surface,

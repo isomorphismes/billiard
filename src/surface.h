@@ -30,7 +30,7 @@ typedef struct {
 enum billiard_surface_status billiard_surface_unfold(const billiard_polygon *polygon,
                                                     billiard_surface *surface);
 enum billiard_surface_status billiard_surface_validate(const billiard_surface *surface);
-/* Existing dynamics and period algorithms consume Q(sqrt(3)) charts. */
+/* Existing cylinder and period algorithms consume Q(sqrt(3)) charts. */
 static inline enum billiard_surface_status billiard_surface_validate_twelfths(const billiard_surface *surface) {
     if (surface && surface->polygon.field != BILLIARD_SQRT3_TWELFTHS)
         return BILLIARD_SURFACE_UNSUPPORTED_FIELD;

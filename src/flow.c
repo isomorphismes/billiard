@@ -8,11 +8,14 @@ static enum billiard_flow_status polygon_result(enum billiard_polygon_status sta
 static enum billiard_flow_status begin(const billiard_surface *surface, size_t copy,
     exact_point position, size_t vertex, exact_point direction, exact_number budget,
     uint32_t crossings, billiard_flow *flow) {
-    if (!flow || billiard_surface_validate_twelfths(surface) != BILLIARD_SURFACE_OK ||
+    enum billiard_surface_status validation = billiard_surface_validate(surface);
+    if (validation == BILLIARD_SURFACE_ARITHMETIC_LIMIT) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
+    if (!flow || validation != BILLIARD_SURFACE_OK ||
         copy >= surface->copy_count || !exact_point_valid(direction) || !billiard_exact_valid(budget))
         return BILLIARD_FLOW_INVALID;
-    exact_work work = {0};
-    if (exact_order(&work,budget,exact_integer(0)) < 0 || work.failed) return BILLIARD_FLOW_INVALID;
+    exact_work work = {.field = surface->polygon.field};
+    if (exact_order(&work,budget,exact_integer(0)) < 0) return BILLIARD_FLOW_INVALID;
+    if (work.failed) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
     exact_point folded_direction = exact_transform(&work,exact_transpose(surface->copy[copy].placement),direction);
     if (work.failed) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
     billiard_polygon_ray ray;
@@ -66,7 +69,7 @@ static int return_within(exact_work *work, const billiard_flow *flow,
 
 static enum billiard_flow_status depart_regular(const billiard_surface *surface,
     size_t vertex_class, exact_point direction, size_t *copy_out, billiard_polygon_ray *ray_out) {
-    exact_work work = {0};
+    exact_work work = {.field = surface->polygon.field};
     for (size_t copy = 0; copy < surface->copy_count; ++copy)
         for (size_t vertex = 0; vertex < surface->polygon.count; ++vertex) {
             if (surface->vertex_class[copy][vertex] != vertex_class) continue;
@@ -82,12 +85,15 @@ static enum billiard_flow_status depart_regular(const billiard_surface *surface,
 
 enum billiard_flow_status billiard_flow_next(const billiard_surface *surface,
     billiard_flow *flow, billiard_flow_event *event) {
-    if (!flow || !event || billiard_surface_validate_twelfths(surface) != BILLIARD_SURFACE_OK ||
+    enum billiard_surface_status validation = billiard_surface_validate(surface);
+    if (validation == BILLIARD_SURFACE_ARITHMETIC_LIMIT) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
+    if (!flow || !event || validation != BILLIARD_SURFACE_OK ||
         flow->copy >= surface->copy_count || flow->initial_copy >= surface->copy_count ||
         !exact_point_valid(flow->direction) || !billiard_exact_valid(flow->parameter) ||
         !billiard_exact_valid(flow->parameter_left)) return BILLIARD_FLOW_INVALID;
+    if (flow->folded_ray.field != surface->polygon.field) return BILLIARD_FLOW_INVALID;
     if (flow->terminal != BILLIARD_FLOW_OK) return BILLIARD_FLOW_STOPPED;
-    exact_work work = {0};
+    exact_work work = {.field = surface->polygon.field};
     if (exact_order(&work,flow->parameter_left,exact_integer(0)) <= 0)
         return work.failed ? BILLIARD_FLOW_ARITHMETIC_LIMIT : BILLIARD_FLOW_DISTANCE_LIMIT;
     exact_point direction = exact_transform(&work,surface->copy[flow->copy].placement,flow->folded_ray.direction);
@@ -110,7 +116,9 @@ enum billiard_flow_status billiard_flow_next(const billiard_surface *surface,
         flight_parameter = return_parameter; kind = BILLIARD_FLOW_PERIODIC;
     } else if (exact_order(&work,flow->parameter_left,flight_parameter) < 0) {
         flight_parameter = flow->parameter_left; kind = BILLIARD_FLOW_DISTANCE_LIMIT;
-    } else if (!flow->crossings_left) return BILLIARD_FLOW_CROSSING_LIMIT;
+    } else if (!flow->crossings_left) {
+        return work.failed ? BILLIARD_FLOW_ARITHMETIC_LIMIT : BILLIARD_FLOW_CROSSING_LIMIT;
+    }
     if (work.failed) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
     billiard_flow proposed = *flow;
     int boundary_reached = kind == BILLIARD_FLOW_EDGE;
@@ -146,6 +154,7 @@ enum billiard_flow_status billiard_flow_next(const billiard_surface *surface,
         proposed.chart_translation = exact_point_sum(&work,flow->chart_translation,translation);
         if (kind == BILLIARD_FLOW_EDGE || kind == BILLIARD_FLOW_REGULAR_VERTEX) {
             exact_point after_direction = exact_transform(&work,surface->copy[proposed.copy].placement,proposed.folded_ray.direction);
+            if (work.failed) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
             if (!exact_point_equal(after_direction,flow->direction)) return BILLIARD_FLOW_INVALID;
         }
     } else {
@@ -156,10 +165,11 @@ enum billiard_flow_status billiard_flow_next(const billiard_surface *surface,
     if (kind == BILLIARD_FLOW_SINGULAR || kind == BILLIARD_FLOW_PERIODIC || kind == BILLIARD_FLOW_DISTANCE_LIMIT)
         proposed.terminal = kind;
     if (work.failed) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
-    double length = hypot(billiard_exact_display(displacement.x),billiard_exact_display(displacement.y));
+    double length = hypot(billiard_polygon_display(work.field,displacement.x),
+                          billiard_polygon_display(work.field,displacement.y));
     if (!isfinite(length)) return BILLIARD_FLOW_ARITHMETIC_LIMIT;
     *event = (billiard_flow_event){kind,flow->copy,proposed.copy,boundary_reached ? collision.side : SIZE_MAX,vertex_class,
-        folded_start,folded_end,developed_start,developed_end,flow->direction,flight_parameter,flow->parameter,length};
+        folded_start,folded_end,developed_start,developed_end,flow->direction,flight_parameter,flow->parameter,length,work.field};
     *flow = proposed;
     return kind;
 }
@@ -173,6 +183,7 @@ const char *billiard_flow_status_name(enum billiard_flow_status status) {
 
 int billiard_flow_write_event(FILE *output, const billiard_flow_event *event) {
     if (!output || !event) return -1;
+    if (event->field != BILLIARD_SQRT2_EIGHTHS && event->field != BILLIARD_SQRT3_TWELFTHS) return -1;
     fprintf(output,"flow\t%s\t%zu\t%zu\t%zu\t%zu\t%d\t%d\t%d\t%d\t%d\t%d",
         billiard_flow_status_name(event->kind),event->from_copy,event->to_copy,event->side,event->vertex_class,
         event->parameter_start.rational,event->parameter_start.radical,event->parameter_start.denominator,
@@ -181,6 +192,8 @@ int billiard_flow_write_event(FILE *output, const billiard_flow_event *event) {
     for (unsigned point = 0; point < sizeof points/sizeof *points; ++point)
         fprintf(output,"\t%d\t%d\t%d\t%d\t%d\t%d",points[point].x.rational,points[point].x.radical,points[point].x.denominator,
             points[point].y.rational,points[point].y.radical,points[point].y.denominator);
-    fprintf(output,"\t%.17g\n",event->length);
+    fprintf(output,"\t%.17g",event->length);
+    if (event->field == BILLIARD_SQRT2_EIGHTHS) fputs("\tradicand=2",output);
+    fputc('\n',output);
     return ferror(output) ? -1 : 0;
 }
