@@ -112,6 +112,23 @@ static void eighth_flow_control(void) {
     assert(fgets(line,sizeof line,output) && strstr(line,"\tradicand=2\n"));
     fclose(output);
 
+    /* Launch the same folded ray from the reflected chart. Its matrix is
+     * sqrt(2)/2 * [[1,1],[1,-1]], so both the global direction and the
+     * developed start contain radicals before the first flight. */
+    size_t reflected_chart = surface.seam[0][2].target_copy;
+    exact_point lift_direction = {(exact_number){0,1,2},(exact_number){0,-1,2}};
+    assert(billiard_flow_begin(&surface,reflected_chart,start,lift_direction,exact_integer(2),4,&flow)
+           == BILLIARD_FLOW_OK);
+    assert(exact_point_equal(flow.folded_ray.direction,integral(0,1)));
+    exact_point lift_start = {(exact_number){0,5,16},(exact_number){0,3,16}};
+    assert(exact_point_equal(flow.initial_chart_position,lift_start));
+    assert(billiard_flow_next(&surface,&flow,&event) == BILLIARD_FLOW_EDGE);
+    assert(event.from_copy == reflected_chart && event.to_copy == 0 && event.side == 2);
+    assert(exact_point_equal(event.developed_end,event.folded_end));
+    assert(billiard_flow_next(&surface,&flow,&event) == BILLIARD_FLOW_EDGE);
+    assert(event.side == 0 && billiard_exact_equal(event.developed_end.x,(exact_number){0,1,2}));
+    assert(billiard_exact_equal(event.developed_end.y,exact_integer(0)));
+
     /* Aim directly at the 3*pi/8 corner. Its 16 lifts meet at a 6*pi
      * cone, so continuing the same vector past this event is undefined. */
     exact_point to_cone = {fraction(1,2),(exact_number){-9,8,8}};
