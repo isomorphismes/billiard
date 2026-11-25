@@ -54,5 +54,17 @@ is 8√2−8. The test independently checks all 48 directed seam transitions.
 Triangle corners can contribute odd numbers of π/8. Topology sums in
 units of π/24 before emitting the existing whole-cone angle in units of
 π/12. The Q(√2) surface report starts with `radicand<TAB>2`. The
-existing period and cylinder routines continue to require Q(√3)
-charts.
+period constructor and affine consumer support both certified fields; cylinder
+routines still require Q(√3) charts. Every period ledger starts with
+`period_radicand<TAB>2` or `period_radicand<TAB>3`, independently of the
+surface serializer. Consumers must use that radicand for the coefficient
+triples; a ledger's field must match its validated source surface. Old period
+ledgers without the tag are not self-describing and should be regenerated.
+
+The integer tree–cotree basis has four absolute and zero additional relative
+generators in the π/8 fixture. `tests/check_eighth_periods.py` independently
+constructs the dihedral chart graph, corner orbits and edge displacements,
+checks the face boundaries and each emitted cycle, and verifies an integral
+basis by a unimodular determinant. It does not use the production arithmetic
+or assume that four homology generators give four real-linearly independent
+holonomies. It does not certify cylinder decompositions or orbit closures.

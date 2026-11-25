@@ -54,8 +54,8 @@ billiard_numeric_point billiard_affine_point(billiard_affine_matrix matrix, bill
     return (billiard_numeric_point){matrix.entry[0][0]*point.x+matrix.entry[0][1]*point.y,
         matrix.entry[1][0]*point.x+matrix.entry[1][1]*point.y};
 }
-static billiard_numeric_point numeric(exact_point point) {
-    return (billiard_numeric_point){billiard_exact_display(point.x),billiard_exact_display(point.y)};
+static billiard_numeric_point numeric(enum billiard_polygon_field field, exact_point point) {
+    return (billiard_numeric_point){billiard_polygon_display(field,point.x),billiard_polygon_display(field,point.y)};
 }
 static int finite_point(billiard_numeric_point point) { return isfinite(point.x) && isfinite(point.y); }
 
@@ -64,7 +64,7 @@ static enum billiard_affine_status torus_basis(const billiard_surface *surface,
     if (surface->genus != 1) return BILLIARD_AFFINE_OK;
     if (periods->absolute_count != 2) return BILLIARD_AFFINE_INVALID;
     exact_point first = periods->period[0].value, second = periods->period[1].value;
-    exact_work work = {0};
+    exact_work work = {.field = periods->field};
     exact_number determinant = exact_cross(&work,first,second);
     int orientation = exact_order(&work,determinant,exact_integer(0));
     exact_number positive_area = orientation > 0 ? determinant : exact_difference(&work,exact_integer(0),determinant);
@@ -100,8 +100,8 @@ static enum billiard_affine_status torus_basis(const billiard_surface *surface,
         second = exact_point_scale(&work,second,exact_integer(-1));
         deformed->tau_basis_coefficients[1][1] = -1;
     }
-    billiard_numeric_point transformed_first = billiard_affine_point(deformed->matrix,numeric(first));
-    billiard_numeric_point transformed_second = billiard_affine_point(deformed->matrix,numeric(second));
+    billiard_numeric_point transformed_first = billiard_affine_point(deformed->matrix,numeric(periods->field,first));
+    billiard_numeric_point transformed_second = billiard_affine_point(deformed->matrix,numeric(periods->field,second));
     double squared_norm = transformed_first.x*transformed_first.x+transformed_first.y*transformed_first.y;
     deformed->tau_real = (transformed_first.x*transformed_second.x+transformed_first.y*transformed_second.y)/squared_norm;
     deformed->tau_imaginary = (transformed_first.x*transformed_second.y-transformed_first.y*transformed_second.x)/squared_norm;
@@ -124,18 +124,18 @@ enum billiard_affine_status billiard_affine_apply(const billiard_surface *surfac
     proposed.copy_count = surface->copy_count; proposed.vertex_count = surface->polygon.count;
     proposed.period_count = periods->period_count; proposed.genus = surface->genus; proposed.zero_count = periods->zero_count;
     for (size_t zero = 0; zero < periods->zero_count; ++zero) proposed.zero_order[zero] = periods->zero_order[zero];
-    proposed.area = billiard_exact_display(surface->area)*proposed.matrix.determinant;
+    proposed.area = billiard_polygon_display(periods->field,surface->area)*proposed.matrix.determinant;
     if (!isfinite(proposed.area) || proposed.area <= 0) return BILLIARD_AFFINE_NONFINITE;
-    exact_work work = {0};
+    exact_work work = {.field = periods->field};
     for (size_t copy = 0; copy < surface->copy_count; ++copy)
         for (size_t vertex = 0; vertex < surface->polygon.count; ++vertex) {
             exact_point point = billiard_surface_vertex(&work,surface,copy,vertex);
-            proposed.vertex[copy][vertex] = billiard_affine_point(proposed.matrix,numeric(point));
-            proposed.seam[copy][vertex] = billiard_affine_point(proposed.matrix,numeric(surface->seam[copy][vertex].translation));
+            proposed.vertex[copy][vertex] = billiard_affine_point(proposed.matrix,numeric(periods->field,point));
+            proposed.seam[copy][vertex] = billiard_affine_point(proposed.matrix,numeric(periods->field,surface->seam[copy][vertex].translation));
             if (!finite_point(proposed.vertex[copy][vertex]) || !finite_point(proposed.seam[copy][vertex])) return BILLIARD_AFFINE_NONFINITE;
         }
     for (size_t period = 0; period < periods->period_count; ++period) {
-        proposed.period[period] = billiard_affine_point(proposed.matrix,numeric(periods->period[period].value));
+        proposed.period[period] = billiard_affine_point(proposed.matrix,numeric(periods->field,periods->period[period].value));
         if (!finite_point(proposed.period[period])) return BILLIARD_AFFINE_NONFINITE;
     }
     double independently_summed_area = 0;

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static void near(double observed, double expected) { assert(fabs(observed-expected) <= 1e-10*(1+fabs(expected))); }
 
@@ -11,7 +12,7 @@ static void check_chains(const billiard_surface *surface, const billiard_period_
     for (size_t period = 0; period < ledger->period_count; ++period) {
         int32_t coefficient[BILLIARD_PERIOD_MAX_EDGES], boundary[BILLIARD_SURFACE_MAX_CORNERS] = {0};
         assert(billiard_period_chain(ledger,period,coefficient) == BILLIARD_PERIOD_OK);
-        exact_work work = {0}; exact_point sum = {exact_integer(0),exact_integer(0)};
+        exact_work work = {.field = surface->polygon.field}; exact_point sum = {exact_integer(0),exact_integer(0)};
         for (size_t edge = 0; edge < ledger->edge_count; ++edge) {
             const billiard_period_edge *record = &ledger->edge[edge];
             boundary[record->start_vertex] -= coefficient[edge]; boundary[record->end_vertex] += coefficient[edge];
@@ -50,6 +51,14 @@ static void check_surface(const billiard_surface *surface, int rectangle, double
     billiard_period_ledger ledger;
     assert(billiard_periods(surface,&ledger) == BILLIARD_PERIOD_OK);
     assert(billiard_periods_validate(surface,&ledger) == BILLIARD_PERIOD_OK);
+    assert(ledger.field == surface->polygon.field);
+    FILE *serialized = tmpfile();
+    assert(serialized && !billiard_periods_write(serialized,&ledger));
+    rewind(serialized);
+    char line[64];
+    assert(fgets(line,sizeof line,serialized));
+    assert(!strcmp(line,ledger.field == BILLIARD_SQRT2_EIGHTHS ? "period_radicand\t2\n" : "period_radicand\t3\n"));
+    fclose(serialized);
     check_chains(surface,&ledger);
     billiard_affine_matrix actions[5];
     assert(billiard_affine(1,0,0,1,&actions[0]) == BILLIARD_AFFINE_OK);
@@ -60,7 +69,16 @@ static void check_surface(const billiard_surface *surface, int rectangle, double
     for (unsigned action = 0; action < 5; ++action) {
         billiard_deformed_surface deformed;
         assert(billiard_affine_apply(surface,&ledger,actions[action],&deformed) == BILLIARD_AFFINE_OK);
-        near(deformed.area,billiard_exact_display(surface->area)*(action == 4 ? 6 : 1));
+        double radical = sqrt(surface->polygon.field == BILLIARD_SQRT2_EIGHTHS ? 2.0 : 3.0);
+        double area = (surface->area.rational+surface->area.radical*radical)/surface->area.denominator;
+        near(deformed.area,area*(action == 4 ? 6 : 1));
+        for (size_t period = 0; period < ledger.period_count; ++period) {
+            exact_point p = ledger.period[period].value;
+            double x = (p.x.rational+p.x.radical*radical)/p.x.denominator;
+            double y = (p.y.rational+p.y.radical*radical)/p.y.denominator;
+            near(deformed.period[period].x,actions[action].entry[0][0]*x+actions[action].entry[0][1]*y);
+            near(deformed.period[period].y,actions[action].entry[1][0]*x+actions[action].entry[1][1]*y);
+        }
         assert(deformed.genus == surface->genus && deformed.zero_count == ledger.zero_count);
         unsigned zero_sum = 0;
         for (size_t zero = 0; zero < deformed.zero_count; ++zero) zero_sum += deformed.zero_order[zero];
@@ -81,11 +99,60 @@ static void check_surface(const billiard_surface *surface, int rectangle, double
     assert(billiard_periods_validate(surface,&changed) == BILLIARD_PERIOD_INVALID);
     billiard_deformed_surface rejected;
     assert(billiard_affine_apply(surface,&changed,actions[0],&rejected) == BILLIARD_AFFINE_INVALID);
+    changed = ledger;
+    changed.field = ledger.field == BILLIARD_SQRT2_EIGHTHS ? BILLIARD_SQRT3_TWELFTHS : BILLIARD_SQRT2_EIGHTHS;
+    assert(billiard_periods_validate(surface,&changed) == BILLIARD_PERIOD_INVALID);
+    assert(billiard_affine_apply(surface,&changed,actions[0],&rejected) == BILLIARD_AFFINE_INVALID);
+    changed.field = (enum billiard_polygon_field)99;
+    int32_t coefficients[BILLIARD_PERIOD_MAX_EDGES];
+    assert(billiard_period_chain(&changed,0,coefficients) == BILLIARD_PERIOD_INVALID);
+    assert(billiard_periods_validate(surface,&changed) == BILLIARD_PERIOD_INVALID);
+    serialized = tmpfile();
+    assert(serialized && billiard_periods_write(serialized,&changed) == -1 && ftell(serialized) == 0);
+    fclose(serialized);
     printf("periods genus %u: absolute=%zu relative=%zu zeroes=%zu; independent chains/affine geometry PASS\n",
         surface->genus,ledger.absolute_count,ledger.relative_count,ledger.zero_count);
 }
 
-int main(void) {
+static void eighth_triangle(billiard_surface *surface) {
+    billiard_polygon triangle = {0};
+    triangle.field = BILLIARD_SQRT2_EIGHTHS;
+    triangle.count = 3;
+    triangle.vertex[0] = (exact_point){exact_integer(0),exact_integer(0)};
+    triangle.vertex[1] = (exact_point){exact_integer(1),exact_integer(0)};
+    triangle.vertex[2] = (exact_point){exact_integer(1),(exact_number){-1,1,1}};
+    triangle.angle[0] = (billiard_angle){1,8};
+    triangle.angle[1] = (billiard_angle){1,2};
+    triangle.angle[2] = (billiard_angle){3,8};
+    assert(billiard_surface_unfold(&triangle,surface) == BILLIARD_SURFACE_OK);
+}
+
+int main(int argc, char **argv) {
+    billiard_surface eighth;
+    eighth_triangle(&eighth);
+    billiard_period_ledger eighth_ledger;
+    assert(billiard_periods(&eighth,&eighth_ledger) == BILLIARD_PERIOD_OK);
+    assert(eighth_ledger.field == BILLIARD_SQRT2_EIGHTHS);
+    assert(eighth_ledger.genus == 2 && eighth_ledger.absolute_count == 4 && eighth_ledger.relative_count == 0);
+    assert(eighth_ledger.zero_count == 1 && eighth_ledger.zero_order[0] == 2);
+    if (argc == 2 && !strcmp(argv[1],"--emit-eighth-periods")) {
+        assert(billiard_periods_validate(&eighth,&eighth_ledger) == BILLIARD_PERIOD_OK);
+        return billiard_periods_write(stdout,&eighth_ledger) ? 1 : 0;
+    }
+    if (argc != 1) return 2;
+    check_surface(&eighth,0,0);
+    /* A radical-valued torus exercises field-aware exact determinant/tau. */
+    billiard_polygon scaled_square;
+    billiard_surface radical_torus;
+    assert(billiard_polygon_fixture(BILLIARD_SQUARE,&scaled_square) == BILLIARD_POLYGON_OK);
+    scaled_square.field = BILLIARD_SQRT2_EIGHTHS;
+    for (size_t vertex = 0; vertex < scaled_square.count; ++vertex) {
+        scaled_square.vertex[vertex].x = (exact_number){0,scaled_square.vertex[vertex].x.rational,1};
+        scaled_square.vertex[vertex].y = (exact_number){0,scaled_square.vertex[vertex].y.rational,1};
+    }
+    assert(billiard_surface_unfold(&scaled_square,&radical_torus) == BILLIARD_SURFACE_OK);
+    assert(billiard_exact_equal(radical_torus.area,exact_integer(8)));
+    check_surface(&radical_torus,1,1);
     for (unsigned kind = 0; kind < BILLIARD_FIXTURE_COUNT; ++kind) {
         billiard_polygon polygon; billiard_surface surface;
         assert(billiard_polygon_fixture((enum billiard_fixture)kind,&polygon) == BILLIARD_POLYGON_OK);

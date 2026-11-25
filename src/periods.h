@@ -16,6 +16,7 @@ typedef struct { enum billiard_period_kind kind; size_t witness; exact_point val
 typedef struct {
     size_t edge_count, vertex_count, base_vertex, period_count, absolute_count, relative_count, zero_count;
     unsigned genus;
+    enum billiard_polygon_field field; /* all exact coordinates use this field */
     billiard_period_edge edge[BILLIARD_PERIOD_MAX_EDGES];
     size_t parent_vertex[BILLIARD_SURFACE_MAX_CORNERS], parent_edge[BILLIARD_SURFACE_MAX_CORNERS];
     int parent_sign[BILLIARD_SURFACE_MAX_CORNERS];
