@@ -1,12 +1,18 @@
 #include "periods.h"
 #include <string.h>
 
+static int period_field_valid(enum billiard_polygon_field field) {
+    return field == BILLIARD_SQRT3_TWELFTHS || field == BILLIARD_SQRT2_EIGHTHS;
+}
+
 enum billiard_period_status billiard_periods(const billiard_surface *surface, billiard_period_ledger *ledger) {
     if (!ledger) return BILLIARD_PERIOD_INVALID;
-    enum billiard_surface_status surface_status = billiard_surface_validate_twelfths(surface);
+    enum billiard_surface_status surface_status = billiard_surface_validate(surface);
     if (surface_status != BILLIARD_SURFACE_OK)
         return surface_status == BILLIARD_SURFACE_ARITHMETIC_LIMIT ? BILLIARD_PERIOD_ARITHMETIC_LIMIT : BILLIARD_PERIOD_INVALID;
+    if (!period_field_valid(surface->polygon.field)) return BILLIARD_PERIOD_INVALID;
     billiard_period_ledger proposed = {0};
+    proposed.field = surface->polygon.field;
     proposed.vertex_count = surface->vertex_class_count; proposed.genus = surface->genus;
     proposed.base_vertex = 0;
     for (size_t vertex = 0; vertex < proposed.vertex_count; ++vertex) {
@@ -16,7 +22,7 @@ enum billiard_period_status billiard_periods(const billiard_surface *surface, bi
             proposed.zero_order[proposed.zero_count++] = surface->cone[vertex].zero_order;
         }
     }
-    exact_work work = {0};
+    exact_work work = {.field = surface->polygon.field};
     for (size_t copy = 0; copy < surface->copy_count; ++copy)
         for (size_t side = 0; side < surface->polygon.count; ++side) {
             size_t opposite = surface->seam[copy][side].target_copy;
@@ -100,7 +106,7 @@ static int add_tree_path(const billiard_period_ledger *ledger, size_t vertex, in
 }
 
 enum billiard_period_status billiard_period_chain(const billiard_period_ledger *ledger, size_t index, int32_t coefficients[BILLIARD_PERIOD_MAX_EDGES]) {
-    if (!ledger || !coefficients || index >= ledger->period_count || ledger->period_count > BILLIARD_PERIOD_MAX_PERIODS ||
+    if (!ledger || !coefficients || !period_field_valid(ledger->field) || index >= ledger->period_count || ledger->period_count > BILLIARD_PERIOD_MAX_PERIODS ||
         ledger->edge_count > BILLIARD_PERIOD_MAX_EDGES || ledger->vertex_count > BILLIARD_SURFACE_MAX_CORNERS ||
         ledger->base_vertex >= ledger->vertex_count) return BILLIARD_PERIOD_INVALID;
     memset(coefficients,0,ledger->edge_count*sizeof *coefficients);
@@ -123,7 +129,7 @@ enum billiard_period_status billiard_periods_validate(const billiard_surface *su
     billiard_period_ledger rebuilt;
     enum billiard_period_status status = billiard_periods(surface,&rebuilt);
     if (status != BILLIARD_PERIOD_OK) return status;
-    if (ledger->edge_count != rebuilt.edge_count || ledger->vertex_count != rebuilt.vertex_count ||
+    if (ledger->field != rebuilt.field || ledger->edge_count != rebuilt.edge_count || ledger->vertex_count != rebuilt.vertex_count ||
         ledger->base_vertex != rebuilt.base_vertex || ledger->period_count != rebuilt.period_count ||
         ledger->absolute_count != rebuilt.absolute_count || ledger->relative_count != rebuilt.relative_count ||
         ledger->zero_count != rebuilt.zero_count || ledger->genus != rebuilt.genus) return BILLIARD_PERIOD_INVALID;
@@ -146,8 +152,9 @@ enum billiard_period_status billiard_periods_validate(const billiard_surface *su
 }
 
 int billiard_periods_write(FILE *output, const billiard_period_ledger *ledger) {
-    if (!output || !ledger || ledger->period_count > BILLIARD_PERIOD_MAX_PERIODS || ledger->edge_count > BILLIARD_PERIOD_MAX_EDGES ||
+    if (!output || !ledger || !period_field_valid(ledger->field) || ledger->period_count > BILLIARD_PERIOD_MAX_PERIODS || ledger->edge_count > BILLIARD_PERIOD_MAX_EDGES ||
         ledger->vertex_count > BILLIARD_SURFACE_MAX_CORNERS || ledger->zero_count > BILLIARD_SURFACE_MAX_CORNERS) return -1;
+    fprintf(output,"period_radicand\t%d\n",ledger->field == BILLIARD_SQRT2_EIGHTHS ? 2 : 3);
     fprintf(output,"period_basis\tprimal_tree_and_disjoint_dual_tree\ngenus\t%u\npositive_zeros\t%zu\nabsolute_periods\t%zu\nrelative_periods\t%zu\nbase_vertex\t%zu\n",
         ledger->genus,ledger->zero_count,ledger->absolute_count,ledger->relative_count,ledger->base_vertex);
     for (size_t zero = 0; zero < ledger->zero_count; ++zero) fprintf(output,"zero_order\t%zu\t%u\n",zero,ledger->zero_order[zero]);

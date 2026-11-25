@@ -99,6 +99,7 @@ test: build/test_billiard build/test_polygon build/test_surface build/test_flow 
 	./build/test_flow
 	./build/test_cylinders
 	./build/test_periods
+	python3 tests/check_eighth_periods.py build/test_periods
 	./build/test_experiments
 	./build/test_explorer
 
